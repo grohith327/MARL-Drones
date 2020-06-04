@@ -88,8 +88,10 @@ while not done:
     if done:
         break
 
-    if (i + 1) % 100 == 0:
+    if (i + 1) % 1000 == 0:
         print(f"Step: {i+1}, Reward: {reward}")
         print(state, "\n")
 
     i += 1
+
+print(state)
