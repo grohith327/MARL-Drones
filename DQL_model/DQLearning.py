@@ -91,8 +91,8 @@ for e in range(EPISODES):
         agent.memorize(state, action, reward, next_state, done)
         state = next_state
         print(
-            "episode: {}/{}, score: {}, e: {:.2}".format(
-                e, EPISODES, time, agent.epsilon
+            "episode: {}/{}, reward: {}, e: {:.2}".format(
+                e, EPISODES, reward, agent.epsilon
             )
         )
         if done:

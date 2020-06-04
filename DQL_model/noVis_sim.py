@@ -45,7 +45,7 @@ class DroneEnv:
             b = np.random.randint(self.col_count)
             if self.grid[a][b] == 1:
                 self.grid[a][b] = self.uncertainity
-                self.uncertain_points[[a, b]] = 1
+                self.uncertain_points[(a, b)] = 1
                 i += 1
 
         for _ in range(self.n_drones):
@@ -127,7 +127,7 @@ class DroneEnv:
                 self.n_drones_pos[i][1], 0.0, float(self.col_count)
             )
 
-        total_reward -= 1 * (1.1) ** (self.step_func_count)
+        total_reward -= 1 * (1.001) ** (self.step_func_count)
         self.step_func_count += 1
         done = True
         for i in range(self.row_count):
