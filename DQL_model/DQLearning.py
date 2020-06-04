@@ -5,7 +5,7 @@ from collections import deque
 from noVis_sim import DroneEnv
 from tensorflow.keras import layers
 
-EPISODES = 1000
+EPISODES = 500
 BATCH_SIZE = 32
 
 
@@ -71,17 +71,16 @@ class Agent:
         self.model.load_weights(name)
 
 
-env = DroneEnv()
+env = DroneEnv(row_count=10, col_count=10)
 
 state_size = env.state_size
 action_size = env.action_size
 n_drones = env.n_drones
 
 agent = Agent(state_size, action_size, n_drones)
-agent.load("DQModel.h5")
 done = False
 
-for e in range(25, EPISODES):
+for e in range(EPISODES):
     state = env.reset()
     state = np.reshape(state, [1, state_size])
     for time in range(500):
@@ -101,4 +100,4 @@ for e in range(25, EPISODES):
         if len(agent.memory) > BATCH_SIZE:
             agent.replay(BATCH_SIZE)
         if e % 10:
-            agent.save("DQModel.h5")
+            agent.save("DQModel_tweaks.h5")

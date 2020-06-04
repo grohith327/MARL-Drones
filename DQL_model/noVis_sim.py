@@ -20,6 +20,7 @@ class DroneEnv:
         self.col_count = col_count
         self.n_anamolous = n_anamolous
         self.uncertainity = uncertainity
+        self.uncertain_points = {}
         self.collision_dist = collision_dist
         self.n_drones = n_drones
         self.n_drones_pos = []
@@ -27,6 +28,8 @@ class DroneEnv:
 
         self.action_size = 8
         self.state_size = row_count * col_count
+
+        self.step_func_count = 0
 
         self.init_env()
 
@@ -41,7 +44,8 @@ class DroneEnv:
             a = np.random.randint(self.row_count)
             b = np.random.randint(self.col_count)
             if self.grid[a][b] == 1:
-                self.grid[a][b] = 2 * self.uncertainity
+                self.grid[a][b] = self.uncertainity
+                self.uncertain_points[[a, b]] = 1
                 i += 1
 
         for _ in range(self.n_drones):
@@ -70,6 +74,14 @@ class DroneEnv:
                     return True
 
         return False
+
+    def _check_uncertain_mapped(self):
+        reward = 0
+        for k, v in self.uncertain_points.items():
+            if self.grid[k[0]][k[1]] == 0 and self.uncertain_points[k] == 1:
+                reward += 10
+                self.uncertain_points[k] = 0
+        return reward
 
     def step(self, actions):
 
@@ -106,7 +118,17 @@ class DroneEnv:
             if det_flag:
                 total_reward += 5
 
-        total_reward -= 1
+            total_reward += self._check_uncertain_mapped()
+
+            self.n_drones_pos[i][0] = np.clip(
+                self.n_drones_pos[i][0], 0.0, float(self.row_count)
+            )
+            self.n_drones_pos[i][1] = np.clip(
+                self.n_drones_pos[i][1], 0.0, float(self.col_count)
+            )
+
+        total_reward -= 1 * (1.1) ** (self.step_func_count)
+        self.step_func_count += 1
         done = True
         for i in range(self.row_count):
             f = 0
