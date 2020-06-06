@@ -80,6 +80,9 @@ state = env.reset()
 state = np.reshape(state, [1, state_size])
 
 i = 0
+print(f"Step: {i+1}")
+print(f"Drone positions:{env.n_drones_pos}")
+print(state, "\n")
 while not done:
     action = agent.act(state)
     next_state, reward, done = env.step(action)
@@ -89,9 +92,12 @@ while not done:
         break
 
     if (i + 1) % 1000 == 0:
-        print(f"Step: {i+1}, Reward: {reward}")
+        print(f"Step: {i+1}")
+        print(f"Drone positions:{env.n_drones_pos}")
         print(state, "\n")
 
     i += 1
 
-print(state)
+print(f"Step: {i+1}")
+print(f"Drone positions:{env.n_drones_pos}")
+print(state, "\n")
