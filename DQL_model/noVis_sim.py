@@ -15,15 +15,15 @@ class DroneEnv:
         n_drones=3,
         step_size=0.2,
     ):
-        self.grid = []
+        self.grid = None
         self.row_count = row_count
         self.col_count = col_count
         self.n_anamolous = n_anamolous
         self.uncertainity = uncertainity
-        self.uncertain_points = {}
+        self.uncertain_points = None
         self.collision_dist = collision_dist
         self.n_drones = n_drones
-        self.n_drones_pos = []
+        self.n_drones_pos = None
         self.step_size = step_size
 
         self.action_size = 8
@@ -40,6 +40,7 @@ class DroneEnv:
             self.grid.append([1] * self.col_count)
 
         i = 0
+        self.uncertain_points = {}
         while i < self.n_anamolous:
             a = np.random.randint(self.row_count)
             b = np.random.randint(self.col_count)
@@ -48,6 +49,7 @@ class DroneEnv:
                 self.uncertain_points[(a, b)] = 1
                 i += 1
 
+        self.n_drones_pos = []
         for _ in range(self.n_drones):
             x = random.uniform(0.0, float(self.row_count))
             y = random.uniform(0.0, float(self.col_count))
