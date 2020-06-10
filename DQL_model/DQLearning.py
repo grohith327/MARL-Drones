@@ -61,6 +61,7 @@ class Agent:
         preds = self.model(state, drone_pos)
         loss = self.mse_loss(preds, target)
         loss.backward()
+        self.model.zero_grad()
         self.optimizer.step()
 
     def memorize(

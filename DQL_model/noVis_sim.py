@@ -96,7 +96,7 @@ class DroneEnv:
         reward = 0.0
         for k, v in self.uncertain_points.items():
             if self.grid[k[0]][k[1]] == 0 and self.uncertain_points[k] == 1:
-                reward += 1.5
+                reward += 1.5 / 100
                 self.uncertain_points[k] = 0
         return reward
 
@@ -144,16 +144,16 @@ class DroneEnv:
                 self.n_drones_pos[i][0], self.n_drones_pos[i][1]
             )
             if det_flag == 1:
-                total_reward += 0.5
+                total_reward += 0.5 / 100
 
             if det_flag == -1:
-                total_reward -= 0.3
+                total_reward -= 0.3 / 100
 
             total_reward -= (
-                self._drone_dist() * 0.2 * ((1.001) ** (self.step_func_count))
+                self._drone_dist() * (0.2 / 100) * ((1.001) ** (self.step_func_count))
             )
 
-            total_reward -= self._check_drones_moved() * 1
+            total_reward -= self._check_drones_moved() * 0.1 / 100
 
             total_reward += self._check_uncertain_mapped()
 
@@ -164,7 +164,7 @@ class DroneEnv:
                 self.n_drones_pos[i][1], 0.0, float(self.col_count - 1)
             )
 
-        total_reward -= 0.2 * (1.01) ** (self.step_func_count)
+        total_reward -= (0.2 / 100) * (1.001) ** (self.step_func_count)
         self.step_func_count += 1
         done = True
         for i in range(self.row_count):
