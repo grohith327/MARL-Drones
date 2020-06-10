@@ -1,34 +1,35 @@
-import tensorflow as tf
 import numpy as np
 import random
 from collections import deque
 from noVis_sim import DroneEnv
-from tensorflow.keras import layers
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 EPISODES = 300
 BATCH_SIZE = 32
 
 
-class AgentModel(tf.keras.Model):
+class AgentModel(nn.Module):
     def __init__(self, state_size, n_drones, action_size):
         super(AgentModel, self).__init__()
-        self.state_input = layers.Dense(128, activation="relu", input_dim=state_size)
-        self.drone_input = layers.Dense(128, activation="relu", input_dim=n_drones * 2)
-        self.dense1 = layers.Dense(256, activation="relu")
-        self.dense2 = layers.Dense(128, activation="relu")
-        self.dense3 = layers.Dense(64, activation="relu")
-        self.dense4 = layers.Dense(32, activation="relu")
-        self.dense5 = layers.Dense(action_size)
+        self.state_input = nn.Linear(state_size, 128)
+        self.drone_input = nn.Linear(n_drones * 2, 128)
+        self.dense1 = nn.Linear(256, 128)
+        self.dense2 = nn.Linear(128, 64)
+        self.dense3 = nn.Linear(64, 32)
+        self.dense4 = nn.Linear(32, action_size)
 
-    def call(self, state, drone_pos):
-        state_embed = self.state_input(state)
-        drone_embed = self.drone_input(drone_pos)
-        out = tf.concat([state_embed, drone_embed], axis=-1)
-        out = self.dense1(out)
-        out = self.dense2(out)
-        out = self.dense3(out)
+    def forward(self, state, drone_pos):
+        state = torch.tensor(state, dtype=torch.float)
+        drone_pos = torch.tensor(drone_pos, dtype=torch.float)
+        state_embed = F.leaky_relu(self.state_input(state))
+        drone_embed = F.leaky_relu(self.drone_input(drone_pos))
+        out = torch.cat([state_embed, drone_embed], dim=-1)
+        out = F.leaky_relu(self.dense1(out))
+        out = F.leaky_relu(self.dense2(out))
+        out = F.leaky_relu(self.dense3(out))
         out = self.dense4(out)
-        out = self.dense5(out)
         return out
 
 
@@ -44,23 +45,23 @@ class Agent:
         self.epsilon_decay = 0.995
         self.learning_rate = 0.0001
 
-        self.loss_object = None
+        self.mse_loss = None
         self.optimizer = None
         self.model = self._build_model()
 
     def _build_model(self):
 
         model = AgentModel(self.state_size, self.n_drones, self.action_size)
-        self.loss_object = tf.keras.losses.MeanSquaredError()
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        self.mse_loss = nn.MSELoss()
+        self.optimizer = torch.optim.AdamW(model.parameters(), lr=self.learning_rate)
         return model
 
     def _fit(self, state, drone_pos, target):
-        with tf.GradientTape() as tape:
-            preds = self.model(state, drone_pos)
-            loss = self.loss_object(target, preds)
-        gradients = tape.gradient(loss, self.model.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
+        target = torch.tensor(target, dtype=torch.float)
+        preds = self.model(state, drone_pos)
+        loss = self.mse_loss(preds, target)
+        loss.backward()
+        self.optimizer.step()
 
     def memorize(
         self, state, drone_pos, action, reward, next_state, next_drone_pos, done
@@ -75,12 +76,14 @@ class Agent:
         for _ in range(self.n_drones):
             if infer:
                 act_values = self.model(state, drone_pos)
+                act_values = act_values.detach().numpy()
                 actions.append(np.argmax(act_values[0]))
                 continue
             if rand_val <= self.epsilon:
                 actions.append(random.randrange(0, self.action_size - 1))
             else:
                 act_values = self.model(state, drone_pos)
+                act_values = act_values.detach().numpy()
                 actions.append(np.argmax(act_values[0]))
         return actions
 
@@ -98,20 +101,20 @@ class Agent:
             target = reward
             if not done:
                 target = reward + self.gamma * np.amax(
-                    self.model(next_state, next_drone_pos)[0]
+                    self.model(next_state, next_drone_pos)[0].detach().numpy()
                 )
             target_f = self.model(state, drone_pos)
-            target_f = target_f.numpy()
+            target_f = target_f.detach().numpy()
             target_f[0][action] = target
             self._fit(state, drone_pos, target_f)
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
     def save(self, name):
-        self.model.save_weights(name)
+        torch.save(self.model.state_dict(), f"{name}.bin")
 
     def load(self, name):
-        self.model.load_weights(name)
+        self.model.load_state_dict(torch.load(f"{name}.bin"))
 
 
 env = DroneEnv(row_count=10, col_count=10)
@@ -150,4 +153,4 @@ for e in range(EPISODES):
         if len(agent.memory) > BATCH_SIZE:
             agent.replay(BATCH_SIZE)
         if e % 10:
-            agent.save("DQModel_new.h5")
+            agent.save("DQTweaks_torch")
