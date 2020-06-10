@@ -5,8 +5,31 @@ from collections import deque
 from noVis_sim import DroneEnv
 from tensorflow.keras import layers
 
-EPISODES = 500
+EPISODES = 300
 BATCH_SIZE = 32
+
+
+class AgentModel(tf.keras.Model):
+    def __init__(self, state_size, n_drones, action_size):
+        super(AgentModel, self).__init__()
+        self.state_input = layers.Dense(128, activation="relu", input_dim=state_size)
+        self.drone_input = layers.Dense(128, activation="relu", input_dim=n_drones * 2)
+        self.dense1 = layers.Dense(256, activation="relu")
+        self.dense2 = layers.Dense(128, activation="relu")
+        self.dense3 = layers.Dense(64, activation="relu")
+        self.dense4 = layers.Dense(32, activation="relu")
+        self.dense5 = layers.Dense(action_size)
+
+    def call(self, state, drone_pos):
+        state_embed = self.state_input(state)
+        drone_embed = self.drone_input(drone_pos)
+        out = tf.concat([state_embed, drone_embed], axis=-1)
+        out = self.dense1(out)
+        out = self.dense2(out)
+        out = self.dense3(out)
+        out = self.dense4(out)
+        out = self.dense5(out)
+        return out
 
 
 class Agent:
@@ -19,48 +42,68 @@ class Agent:
         self.epsilon = 1.0
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.995
-        self.learning_rate = 0.001
+        self.learning_rate = 0.0001
+
+        self.loss_object = None
+        self.optimizer = None
         self.model = self._build_model()
 
     def _build_model(self):
-        model = tf.keras.Sequential()
-        model.add(layers.Dense(128, activation="relu", input_dim=self.state_size))
-        model.add(layers.Dense(64, activation="relu"))
-        model.add(layers.Dense(32, activation="relu"))
-        model.add(layers.Dense(self.action_size))
 
-        model.compile(
-            loss="mse",
-            optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
-        )
+        model = AgentModel(self.state_size, self.n_drones, self.action_size)
+        self.loss_object = tf.keras.losses.MeanSquaredError()
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
         return model
 
-    def memorize(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
+    def _fit(self, state, drone_pos, target):
+        with tf.GradientTape() as tape:
+            preds = self.model(state, drone_pos)
+            loss = self.loss_object(target, preds)
+        gradients = tape.gradient(loss, self.model.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
 
-    def act(self, state):
+    def memorize(
+        self, state, drone_pos, action, reward, next_state, next_drone_pos, done
+    ):
+        self.memory.append(
+            (state, drone_pos, action, reward, next_state, next_drone_pos, done)
+        )
+
+    def act(self, state, drone_pos, infer=False):
         actions = []
+        rand_val = np.random.rand()
         for _ in range(self.n_drones):
-            if np.random.rand() <= self.epsilon:
-                actions.append(random.randrange(self.action_size))
+            if infer:
+                act_values = self.model(state, drone_pos)
+                actions.append(np.argmax(act_values[0]))
+                continue
+            if rand_val <= self.epsilon:
+                actions.append(random.randrange(0, self.action_size - 1))
             else:
-                act_values = self.model.predict(state)
+                act_values = self.model(state, drone_pos)
                 actions.append(np.argmax(act_values[0]))
         return actions
 
     def replay(self, batch_size):
         minibatch = random.sample(self.memory, batch_size)
-        for state, action, reward, next_state, done in minibatch:
-            # print(rewards)
-            # for reward in rewards:
+        for (
+            state,
+            drone_pos,
+            action,
+            reward,
+            next_state,
+            next_drone_pos,
+            done,
+        ) in minibatch:
             target = reward
             if not done:
                 target = reward + self.gamma * np.amax(
-                    self.model.predict(next_state)[0]
+                    self.model(next_state, next_drone_pos)[0]
                 )
-            target_f = self.model.predict(state)
+            target_f = self.model(state, drone_pos)
+            target_f = target_f.numpy()
             target_f[0][action] = target
-            self.model.fit(state, target_f, epochs=1, verbose=0)
+            self._fit(state, drone_pos, target_f)
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
@@ -83,13 +126,20 @@ done = False
 for e in range(EPISODES):
     state = env.reset()
     state = np.reshape(state, [1, state_size])
+    drone_pos = np.array(env.n_drones_pos)
+    drone_pos = drone_pos.reshape((1, n_drones * 2))
     for time in range(500):
-        action = agent.act(state)
+        action = agent.act(state, drone_pos)
         next_state, reward, done = env.step(action)
-        reward = reward if not done else -1000
+        reward = reward if not done else 1000
         next_state = np.reshape(next_state, [1, state_size])
-        agent.memorize(state, action, reward, next_state, done)
+        next_drone_pos = np.array(env.n_drones_pos)
+        next_drone_pos = next_drone_pos.reshape((1, n_drones * 2))
+        agent.memorize(
+            state, drone_pos, action, reward, next_state, next_drone_pos, done
+        )
         state = next_state
+        drone_pos = next_drone_pos
         print(
             "episode: {}/{}, reward: {}, e: {:.2}".format(
                 e, EPISODES, reward, agent.epsilon
@@ -100,4 +150,4 @@ for e in range(EPISODES):
         if len(agent.memory) > BATCH_SIZE:
             agent.replay(BATCH_SIZE)
         if e % 10:
-            agent.save("DQModel_tweaks.h5")
+            agent.save("DQModel_new.h5")

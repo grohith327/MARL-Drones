@@ -50,6 +50,7 @@ class DroneEnv:
                 i += 1
 
         self.n_drones_pos = []
+        self.prev_drone_pos = []
         for _ in range(self.n_drones):
             x = random.uniform(0.0, float(self.row_count))
             y = random.uniform(0.0, float(self.col_count))
@@ -73,17 +74,42 @@ class DroneEnv:
                 dist = self._eucid_dist(drone_x, drones_y, x, y)
                 if dist < self.collision_dist and self.grid[x][y] > 0:
                     self.grid[x][y] -= 1
-                    return True
+                    return 1
+                if dist < self.collision_dist and self.grid[x][y] == 0:
+                    return -1
 
-        return False
+        return 0
+
+    def _drone_dist(self):
+        dist_count = 0
+        for i in range(self.n_drones - 1):
+            for j in range(i + 1, self.n_drones):
+                x1 = self.n_drones_pos[i][0]
+                y1 = self.n_drones_pos[i][1]
+                x2 = self.n_drones_pos[j][0]
+                y2 = self.n_drones_pos[j][1]
+                if self._eucid_dist(x1, y1, x2, y2) < self.row_count // 3:
+                    dist_count += 1
+        return dist_count
 
     def _check_uncertain_mapped(self):
         reward = 0
         for k, v in self.uncertain_points.items():
             if self.grid[k[0]][k[1]] == 0 and self.uncertain_points[k] == 1:
-                reward += 10
+                reward += 15
                 self.uncertain_points[k] = 0
         return reward
+
+    def _check_drones_moved(self):
+        if len(self.prev_drone_pos) == 0:
+            self.prev_drone_pos = self.n_drones_pos
+            return 0
+
+        count = 0
+        for i in range(len(self.prev_drone_pos)):
+            if self.prev_drone_pos[i] == self.n_drones_pos[i]:
+                count += 1
+        return count
 
     def step(self, actions):
 
@@ -117,19 +143,26 @@ class DroneEnv:
             det_flag = self._det_collision(
                 self.n_drones_pos[i][0], self.n_drones_pos[i][1]
             )
-            if det_flag:
+            if det_flag == 1:
                 total_reward += 5
+
+            if det_flag == -1:
+                total_reward -= 3
+
+            total_reward -= self._drone_dist() * 2 * ((1.001) ** (self.step_func_count))
+
+            total_reward -= self._check_drones_moved() * 10
 
             total_reward += self._check_uncertain_mapped()
 
             self.n_drones_pos[i][0] = np.clip(
-                self.n_drones_pos[i][0], 0.0, float(self.row_count)
+                self.n_drones_pos[i][0], 0.0, float(self.row_count - 1)
             )
             self.n_drones_pos[i][1] = np.clip(
-                self.n_drones_pos[i][1], 0.0, float(self.col_count)
+                self.n_drones_pos[i][1], 0.0, float(self.col_count - 1)
             )
 
-        total_reward -= 1 * (1.001) ** (self.step_func_count)
+        total_reward -= 1 * (1.01) ** (self.step_func_count)
         self.step_func_count += 1
         done = True
         for i in range(self.row_count):

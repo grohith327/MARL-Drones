@@ -4,6 +4,7 @@ import random
 from collections import deque
 from noVis_sim import DroneEnv
 from tensorflow.keras import layers
+import os
 
 
 class Agent:
@@ -35,9 +36,13 @@ class Agent:
     def memorize(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
 
-    def act(self, state):
+    def act(self, state, infer=False):
         actions = []
         for _ in range(self.n_drones):
+            if infer:
+                act_values = self.model.predict(state)
+                actions.append(np.argmax(act_values[0]))
+                continue
             if np.random.rand() <= self.epsilon:
                 actions.append(random.randrange(self.action_size))
             else:
@@ -66,14 +71,14 @@ class Agent:
         self.model.load_weights(name)
 
 
-env = DroneEnv()
+env = DroneEnv(row_count=10, col_count=10)
 
 state_size = env.state_size
 action_size = env.action_size
 n_drones = env.n_drones
 
 agent = Agent(state_size, action_size, n_drones)
-agent.load("DQModel.h5")
+agent.load("DQModel_tweaks.h5")
 done = False
 
 state = env.reset()
@@ -83,15 +88,49 @@ i = 0
 print(f"Step: {i+1}")
 print(f"Drone positions:{env.n_drones_pos}")
 print(state, "\n")
+
+if os.path.exists("drone_pos_tweaks.txt"):
+    os.remove("drone_pos_tweaks.txt")
+dronewriter = open("drone_pos_tweaks.txt", "a")
+temp = env.n_drones_pos
+temp = ",".join(list(map(lambda x: str(x), temp)))
+dronewriter.write(temp + "\n")
+
+if os.path.exists("state_tweaks.txt"):
+    os.remove("state_tweaks.txt")
+statewriter = open("state_tweaks.txt", "a")
+temp = state
+temp = temp.reshape(10, 10)
+temp = ",".join(list(map(lambda x: str(x), temp)))
+statewriter.write(temp + "\n")
+
+if os.path.exists("uncertrain_cells_tweaks.txt"):
+    os.remove("uncertrain_cells_tweaks.txt")
+uncer_writer = open("uncertrain_cells_tweaks.txt", "a")
+points = list(env.uncertain_points.keys())
+points = ",".join(list(map(lambda x: str(x), points)))
+uncer_writer.write(points + "\n")
+uncer_writer.close()
+
+
 while not done:
-    action = agent.act(state)
+    action = agent.act(state, infer=True)
     next_state, reward, done = env.step(action)
     next_state = np.reshape(next_state, [1, state_size])
     state = next_state
     if done:
         break
 
-    if (i + 1) % 1000 == 0:
+    temp = env.n_drones_pos
+    temp = ",".join(list(map(lambda x: str(x), temp)))
+    dronewriter.write(temp + "\n")
+
+    temp = state
+    temp = temp.reshape(10, 10)
+    temp = ",".join(list(map(lambda x: str(x), temp)))
+    statewriter.write(temp + "\n")
+
+    if (i + 1) % 10 == 0:
         print(f"Step: {i+1}")
         print(f"Drone positions:{env.n_drones_pos}")
         print(state, "\n")
@@ -101,3 +140,6 @@ while not done:
 print(f"Step: {i+1}")
 print(f"Drone positions:{env.n_drones_pos}")
 print(state, "\n")
+
+dronewriter.close()
+statewriter.close()
