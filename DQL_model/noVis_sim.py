@@ -93,10 +93,10 @@ class DroneEnv:
         return dist_count
 
     def _check_uncertain_mapped(self):
-        reward = 0
+        reward = 0.0
         for k, v in self.uncertain_points.items():
             if self.grid[k[0]][k[1]] == 0 and self.uncertain_points[k] == 1:
-                reward += 15
+                reward += 1.5
                 self.uncertain_points[k] = 0
         return reward
 
@@ -115,7 +115,7 @@ class DroneEnv:
 
         assert len(actions) == self.n_drones, "provide actions for each drone"
 
-        total_reward = 0
+        total_reward = 0.0
         scale_dist = 1 / math.sqrt(2)
         for i, action in enumerate(actions):
             assert action >= 0 and action < 8, "action should be in range:[0,8)"
@@ -144,14 +144,16 @@ class DroneEnv:
                 self.n_drones_pos[i][0], self.n_drones_pos[i][1]
             )
             if det_flag == 1:
-                total_reward += 5
+                total_reward += 0.5
 
             if det_flag == -1:
-                total_reward -= 3
+                total_reward -= 0.3
 
-            total_reward -= self._drone_dist() * 2 * ((1.001) ** (self.step_func_count))
+            total_reward -= (
+                self._drone_dist() * 0.2 * ((1.001) ** (self.step_func_count))
+            )
 
-            total_reward -= self._check_drones_moved() * 10
+            total_reward -= self._check_drones_moved() * 1
 
             total_reward += self._check_uncertain_mapped()
 
@@ -162,7 +164,7 @@ class DroneEnv:
                 self.n_drones_pos[i][1], 0.0, float(self.col_count - 1)
             )
 
-        total_reward -= 1 * (1.01) ** (self.step_func_count)
+        total_reward -= 0.2 * (1.01) ** (self.step_func_count)
         self.step_func_count += 1
         done = True
         for i in range(self.row_count):
