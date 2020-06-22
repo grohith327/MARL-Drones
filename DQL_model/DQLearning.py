@@ -125,7 +125,7 @@ class Agent:
             self.models[i].load_state_dict(torch.load(f"{name}_drone_{i}.bin"))
 
 
-env = DroneEnv(row_count=10, col_count=10)
+env = DroneEnv(row_count=5, col_count=5)
 
 state_size = env.state_size
 action_size = env.action_size

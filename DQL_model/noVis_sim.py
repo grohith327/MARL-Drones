@@ -146,12 +146,12 @@ class DroneEnv:
             if det_flag == 1:
                 total_reward += 0.5 / 100
 
-            if det_flag == -1:
-                total_reward -= 0.3 / 100
+            # if det_flag == -1:
+            #     total_reward -= 0.3 / 100
 
-            total_reward -= (
-                self._drone_dist() * (0.2 / 100) * ((1.001) ** (self.step_func_count))
-            )
+            # total_reward -= (
+            #     self._drone_dist() * (0.2 / 100) * ((1.001) ** (self.step_func_count))
+            # )
 
             total_reward -= self._check_drones_moved() * 0.1 / 100
 
@@ -164,7 +164,7 @@ class DroneEnv:
                 self.n_drones_pos[i][1], 0.0, float(self.col_count - 1)
             )
 
-        total_reward -= (0.2 / 100) * (1.001) ** (self.step_func_count)
+        total_reward -= (0.05 / 100) * (1.001) ** (self.step_func_count)
         self.step_func_count += 1
         done = True
         for i in range(self.row_count):
