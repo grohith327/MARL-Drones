@@ -33,6 +33,8 @@ class DroneEnv:
 
     def init_env(self):
 
+        self.step_func_count = 0
+
         self.grid = []
         for _ in range(self.row_count):
             self.grid.append([1] * self.col_count)
@@ -126,7 +128,7 @@ class DroneEnv:
                 self.n_drones_pos[i][0], self.n_drones_pos[i][1]
             )
 
-        total_reward -= (0.5) * (1.001) ** (
+        total_reward -= (0.5) * (1.004) ** (
             self.step_func_count
         )  ## Exponentially increasing punishment as env runs
         total_reward += (0.2 * self._drone_dist()) * (1.01) ** (
