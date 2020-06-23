@@ -5,3 +5,4 @@ __pycache__
 *.npy
 *.png
 *.jpg
+*.ipynb
