@@ -131,9 +131,9 @@ class DroneEnv:
                 self.n_drones_pos[i][0], self.n_drones_pos[i][1]
             )
 
-        total_reward -= (0.5) * (1.004) ** (
+        total_reward -= (0.5) * (
             self.step_func_count
-        )  ## Exponentially increasing punishment as env runs
+        )  ## Linearly increasing punishment as env runs
         total_reward += (0.2 * self._drone_dist()) * (1.01) ** (
             -self.step_func_count
         )  ## Exponentialy decreasing reward as drones spread out
