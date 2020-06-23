@@ -24,7 +24,7 @@ class DroneEnv:
         self.n_drones_pos = None
         self.step_size = step_size
 
-        self.action_size = 5
+        self.action_size = 4
         self.state_size = row_count * col_count
 
         self.step_func_count = 0
@@ -75,8 +75,8 @@ class DroneEnv:
             reward -= 0.1
             return reward
 
-        self.grid[drone_x][drones_y] -= 1
-        reward += self._check_uncertain_mapped()
+        self.grid[drone_x][drones_y] = 0
+        reward += 10.0 + self._check_uncertain_mapped()
         return reward
 
     def _drone_dist(self):
@@ -95,7 +95,7 @@ class DroneEnv:
         reward = 0.0
         for k, v in self.uncertain_points.items():
             if self.grid[k[0]][k[1]] == 0 and self.uncertain_points[k] == 1:
-                reward += 2.0
+                reward += 20.0
                 self.uncertain_points[k] = 0
         return reward
 
@@ -128,9 +128,14 @@ class DroneEnv:
                 self.n_drones_pos[i][0], self.n_drones_pos[i][1]
             )
 
-        total_reward -= (0.5) * (
-            self.step_func_count
-        )  ## Linearly increasing punishment as env runs
+        punsh_flag = False
+        if self.step_func_count > ((self.row_count * self.col_count) / self.step_size):
+            punsh_flag = True
+        if punsh_flag:
+            total_reward -= (0.5) * (
+                self.step_func_count
+                - (self.row_count * self.col_count) / self.step_size
+            )  ## Linearly increasing punishment as env runs
         total_reward += (0.2 * self._drone_dist()) * (1.01) ** (
             -self.step_func_count
         )  ## Exponentialy decreasing reward as drones spread out
