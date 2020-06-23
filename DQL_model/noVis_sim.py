@@ -26,7 +26,7 @@ class DroneEnv:
         self.n_drones_pos = None
         self.step_size = step_size
 
-        self.action_size = 4
+        self.action_size = 5  ## move in 4 directions + don't move
         self.state_size = row_count * col_count
 
         self.step_func_count = 0
@@ -57,7 +57,7 @@ class DroneEnv:
             x = np.random.randint(self.row_count)
             y = np.random.randint(self.col_count)
 
-            self.n_drones_pos.append([x, y])
+            self.n_drones_pos.append([float(x), float(y)])
 
     def reset(self):
         self.init_env()
@@ -71,16 +71,20 @@ class DroneEnv:
 
     def _det_collision(self, drone_x, drones_y):
 
+        reward = 0.0
         for x in range(self.row_count):
+            break_flag = False
             for y in range(self.col_count):
                 dist = self._eucid_dist(drone_x, drones_y, x, y)
                 if dist < self.collision_dist and self.grid[x][y] > 0:
-                    self.grid[x][y] -= 1
-                    return 2.0 + self._check_uncertain_mapped()
-                # if dist < self.collision_dist and self.grid[x][y] == 0:
-                #     return -1
+                    self.grid[x][y] = 0
+                    reward += 10.0 + self._check_uncertain_mapped()
+                    break_flag = True
+                    break
+            if break_flag:
+                break
 
-        return 0.0
+        return reward
 
     def _drone_dist(self):
         dist_count = 0
@@ -98,7 +102,7 @@ class DroneEnv:
         reward = 0.0
         for k, v in self.uncertain_points.items():
             if self.grid[k[0]][k[1]] == 0 and self.uncertain_points[k] == 1:
-                reward += 4.0
+                reward += 20.0
                 self.uncertain_points[k] = 0
         return reward
 
@@ -131,9 +135,14 @@ class DroneEnv:
                 self.n_drones_pos[i][0], self.n_drones_pos[i][1]
             )
 
-        total_reward -= (0.5) * (
-            self.step_func_count
-        )  ## Linearly increasing punishment as env runs
+        punsh_flag = False
+        if self.step_func_count > ((self.row_count * self.col_count) / self.step_size):
+            punsh_flag = True
+        if punsh_flag:
+            total_reward -= (0.5) * (
+                self.step_func_count
+                - (self.row_count * self.col_count) / self.step_size
+            )  ## Linearly increasing punishment as env runs
         total_reward += (0.2 * self._drone_dist()) * (1.01) ** (
             -self.step_func_count
         )  ## Exponentialy decreasing reward as drones spread out
