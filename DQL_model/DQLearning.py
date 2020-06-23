@@ -79,8 +79,6 @@ class Agent:
         target_x, target_y = np.where(target == np.max(target))
         target_x = target_x[0]
         target_y = target_y[0]
-        if target_x - curr_x == 0 and target_y - curr_y == 0:
-            return 4
         if target_y - curr_y < 0:
             return 0
         if target_y - curr_y > 0:
