@@ -26,7 +26,7 @@ class DroneEnv:
         self.n_drones_pos = None
         self.step_size = step_size
 
-        self.action_size = 5  ## move in 4 directions + don't move
+        self.action_size = 4
         self.state_size = row_count * col_count
 
         self.step_func_count = 0
