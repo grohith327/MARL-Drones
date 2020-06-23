@@ -145,7 +145,7 @@ class Agent:
             self.models[i].load_state_dict(torch.load(f"{name}_drone_{i}.bin"))
 
 
-env = DroneEnv()
+env = DroneEnv(row_count=5, col_count=5)
 
 state_size = env.state_size
 action_size = env.action_size
@@ -161,7 +161,7 @@ for e in range(EPISODES):
     state = np.reshape(state, [1, state_size])
     drone_pos = np.array(env.n_drones_pos)
     drone_pos = drone_pos.reshape((n_drones, 2))
-    for time in range(500):
+    for time in range(1000):
         action = agent.act(state, drone_pos)
         next_state, reward, done = env.step(action)
         reward = reward if not done else 1000
@@ -183,4 +183,4 @@ for e in range(EPISODES):
         if len(agent.memory) > BATCH_SIZE:
             agent.replay(BATCH_SIZE)
         if e % 10:
-            agent.save("DQL_envchanges")
+            agent.save("DQL_envchanges_55_grid")
