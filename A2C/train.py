@@ -16,6 +16,7 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
     steps = []
     total_steps = 0
     ep_rewards = 0.0
+    grad_step = 0
 
     pbar = tqdm(total=args.total_steps)
     while total_steps < args.total_steps:
@@ -96,10 +97,14 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
 
         loss.backward()
 
-        for i in range(n_drones):
-            torch.nn.utils.clip_grad_norm_(nets[i].parameters(), args.grad_norm_limit)
-            optimizers[i].step()
-            optimizers[i].zero_grad()
+        if (grad_step + 1) % args.grad_acc == 0:
+            for i in range(n_drones):
+                torch.nn.utils.clip_grad_norm_(
+                    nets[i].parameters(), args.grad_norm_limit
+                )
+                optimizers[i].step()
+                optimizers[i].zero_grad()
+        grad_step += 1
 
         steps = []
 
