@@ -55,6 +55,7 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
             ).unsqueeze(1)
 
             total_steps += 1
+            pbar.update(1)
             ep_rewards += rewards
             if dones:
                 ep_rewards = 0.0
@@ -96,7 +97,7 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
         loss.backward()
 
         for i in range(n_drones):
-            torch.nn.utils.clip_grad_norm(nets[i].parameters(), args.grad_norm_limit)
+            torch.nn.utils.clip_grad_norm_(nets[i].parameters(), args.grad_norm_limit)
             optimizers[i].step()
             optimizers[i].zero_grad()
 
@@ -106,7 +107,6 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
             for i in range(n_drones):
                 torch.save(nets[i].state_dict(), f"A2C_models/A2C_drone_{i}.bin")
 
-        pbar.update(1)
         pbar.set_postfix(loss=loss.item(), reward=np.mean(avg_rewards))
 
         logging.info(f"loss: {loss.item()}, reward: {np.mean(avg_rewards)}")
