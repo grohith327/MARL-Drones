@@ -11,7 +11,7 @@ parser.add_argument("--rollout-steps", type=int, default=20, help="steps per rol
 parser.add_argument(
     "--total-steps",
     type=int,
-    default=int(4e6),
+    default=int(5e7),
     help="total number of steps to train for",
 )
 parser.add_argument("--lr", type=float, default=1e-4, help="learning rate")
