@@ -77,8 +77,6 @@ class Agent:
         target_x, target_y = np.where(target == np.max(target))
         target_x = target_x[0]
         target_y = target_y[0]
-        if target_x - curr_x == 0 and target_y - curr_y == 0:
-            return 4
         if target_y - curr_y < 0:
             return 0
         if target_y - curr_y > 0:
@@ -143,7 +141,7 @@ class Agent:
             self.models[i].load_state_dict(torch.load(f"{name}_drone_{i}.bin"))
 
 
-env = DroneEnv()
+env = DroneEnv(row_count=5, col_count=5)
 
 state_size = env.state_size
 action_size = env.action_size
@@ -152,7 +150,7 @@ row_count = env.row_count
 col_count = env.col_count
 
 agent = Agent(state_size, action_size, n_drones, row_count, col_count)
-agent.load("DQL_envchanges")
+agent.load("DQL_envchanges_55_grid")
 done = False
 
 state = env.reset()
@@ -163,8 +161,8 @@ drone_pos = drone_pos.reshape((n_drones, 2))
 i = 0
 print(f"Step: {i+1}")
 print(f"Drone positions:{env.n_drones_pos}")
-temp_st = state.reshape((10, 10))
-print(temp_st, "\n")
+temp_st = state.reshape((5, 5))
+print(temp_st.T, "\n")
 
 """
 if os.path.exists("drone_pos_tweaks.txt"):
@@ -217,8 +215,8 @@ while not done:
         print(f"Step: {i+1}")
         print(f"Drone positions:{env.n_drones_pos}")
         print(f"Action:{action}")
-        temp_st = state.reshape((10, 10))
-        print(temp_st, "\n")
+        temp_st = state.reshape((5, 5))
+        print(temp_st.T, "\n")
 
     i += 1
 
