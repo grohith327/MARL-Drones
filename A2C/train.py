@@ -49,11 +49,11 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
             for i in range(n_drones):
                 p, v = nets[i](obs, drone_pos)
                 probs = F.softmax(p, dim=-1)
-                a = probs.multinomial(probs.size()[0]).data
+                a = torch.argmax(probs)
 
                 policies.append(p)
                 values.append(v)
-                actions.append(a.numpy()[0, 0])
+                actions.append(a.detach().unsqueeze(0).numpy())
 
             # gather env data, reset done envs and update their obs
             obs, rewards, dones = env.step(actions)
