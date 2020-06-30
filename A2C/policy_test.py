@@ -1,16 +1,43 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 import numpy as np
-from models import MlpPolicy
+from models import MlpPolicy, CNNPolicy
 from noVis_sim import DroneEnv
+import argparse
+
+parser = argparse.ArgumentParser(description="A2C Policy test")
+parser.add_argument("--policy", type=str, default="MLP", help="CNN or MLP")
+
+args = parser.parse_args()
 
 
-def load_models(state_size, n_drones, action_size):
+def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
+    if args.policy == "MLP":
+        obs = np.reshape(obs, [1, obs_size])
+        obs = Variable(torch.from_numpy(obs).float())
+
+    if args.policy == "CNN":
+        obs = np.reshape(obs, [1, args.grid_size, args.grid_size])
+        obs = Variable(torch.from_numpy(obs).float())
+
+    drone_pos = drone_pos.reshape((n_drones, 2))
+    drone_pos = Variable(torch.from_numpy(drone_pos).float().view(1, -1))
+    return obs, drone_pos
+
+
+def load_models(args, state_size, n_drones, action_size):
     nets = []
     for i in range(n_drones):
-        model = MlpPolicy(state_size, n_drones, action_size)
-        model.load_state_dict(torch.load(f"A2C_models/A2C_drone_{i}.bin"))
+        if args.policy == "MLP":
+            model = MlpPolicy(state_size, n_drones, action_size)
+        else:
+            model = CNNPolicy(n_drones, action_size)
+
+        model.load_state_dict(
+            torch.load(f"A2C_models/{args.policy}_policy/A2C_drone_{i}.bin")
+        )
         nets.append(model)
     return nets
 
@@ -21,23 +48,21 @@ obs_size = env.state_size
 action_size = env.action_size
 n_drones = env.n_drones
 
-nets = load_models(obs_size, n_drones, action_size)
+nets = load_models(args, obs_size, n_drones, action_size)
+print("models loaded")
 
 obs = env.reset()
-obs = np.reshape(obs, [1, obs_size])
 drone_pos = np.array(env.n_drones_pos)
-drone_pos = drone_pos.reshape((n_drones, 2))
+obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
 done = False
 
 step = 0
 print(f"Step: {step+1}")
 print(f"Drone positions:{env.n_drones_pos}")
 temp_st = obs.reshape((5, 5))
-print(temp_st.T, "\n")
+print(temp_st, "\n")
 
 while not done:
-    obs = torch.from_numpy(obs).float()
-    drone_pos = torch.from_numpy(drone_pos).float().view(1, -1)
 
     policies = []
     values = []
@@ -52,15 +77,14 @@ while not done:
         actions.append(a.numpy()[0, 0])
 
     obs, reward, done = env.step(actions)
-    obs = np.reshape(obs, [1, obs_size])
     drone_pos = np.array(env.n_drones_pos)
-    drone_pos = drone_pos.reshape((n_drones, 2))
+    obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
 
     if (step + 1) % 100 == 0:
         print(f"Step: {step+1}")
         print(f"Drone positions:{env.n_drones_pos}")
         print(f"Action:{actions}")
         temp_st = obs.reshape((5, 5))
-        print(temp_st.T, "\n")
+        print(temp_st, "\n")
 
     step += 1
