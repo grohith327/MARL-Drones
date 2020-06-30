@@ -9,6 +9,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description="A2C Policy test")
 parser.add_argument("--policy", type=str, default="MLP", help="CNN or MLP")
+parser.add_argument("--grid_size", type=int, default=5, help="Grid size, Default: 5x5")
 
 args = parser.parse_args()
 
@@ -42,7 +43,7 @@ def load_models(args, state_size, n_drones, action_size):
     return nets
 
 
-env = DroneEnv(row_count=5, col_count=5, step_size=1.0)
+env = DroneEnv(row_count=args.grid_size, col_count=args.grid_size, step_size=1.0)
 
 obs_size = env.state_size
 action_size = env.action_size
