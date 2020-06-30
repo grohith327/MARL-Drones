@@ -110,7 +110,10 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
 
         if total_steps % args.save_freq == 0:
             for i in range(n_drones):
-                torch.save(nets[i].state_dict(), f"A2C_models/A2C_drone_{i}.bin")
+                torch.save(
+                    nets[i].state_dict(),
+                    f"A2C_models/{args.policy}_policy/A2C_drone_{i}.bin",
+                )
 
         pbar.set_postfix(loss=loss.item(), reward=np.mean(avg_rewards))
 

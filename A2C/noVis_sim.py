@@ -162,6 +162,8 @@ class DroneEnv:
                 break
 
         grid = self.grid.copy()
+        grid = np.array(grid)
+        grid = grid.T
         grid = reduce(lambda x, y: x + y, self.grid)
         grid = np.array(grid)
 

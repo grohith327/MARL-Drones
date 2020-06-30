@@ -139,9 +139,13 @@ class MlpPolicy(nn.Module):
             layer.weight.data = ortho_weights(layer.weight.size())
 
     def forward(self, state, drone_pos):
+        mu = state.mean()
+        std = state.std()
+        state = (state - mu) / std
         state_embed = F.leaky_relu(self.state_input(state))
         drone_embed = F.leaky_relu(self.drone_input(drone_pos))
         out = torch.cat([state_embed, drone_embed], dim=-1)
+        out = F.normalize(out)
         out = F.leaky_relu(self.dense1(out))
         out = F.leaky_relu(self.dense2(out))
         out = F.leaky_relu(self.dense3(out))
