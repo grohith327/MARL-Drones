@@ -1,7 +1,7 @@
 import argparse
 import torch
 import torch.optim as optim
-from models import MlpPolicy
+from models import MlpPolicy, CNNPolicy
 from noVis_sim import DroneEnv
 from train import train
 import argparse
@@ -37,18 +37,23 @@ parser.add_argument(
 )
 parser.add_argument("--grad_acc", type=int, default=1, help="grad accumulation steps")
 parser.add_argument("--policy", type=str, default="MLP", help="CNN or MLP")
+parser.add_argument("--grid_size", type=int, default=5, help="Grid size, Default: 5x5")
 
 args = parser.parse_args()
 
 assert args.policy == "CNN" or args.policy == "MLP", "policy must be CNN or MLP"
 
-env = DroneEnv(row_count=5, col_count=5, step_size=1.0)
+env = DroneEnv(row_count=args.grid_size, col_count=args.grid_size, step_size=1.0)
 
 state_size = env.state_size
 action_size = env.action_size
 n_drones = env.n_drones
 
-nets = [MlpPolicy(state_size, n_drones, action_size) for _ in range(n_drones)]
+if args.policy == "MLP":
+    nets = [MlpPolicy(state_size, n_drones, action_size) for _ in range(n_drones)]
+else:
+    nets = [CNNPolicy(n_drones, action_size) for _ in range(n_drones)]
+
 optimizers = [optim.AdamW(nets[i].parameters(), lr=args.lr) for i in range(n_drones)]
 
 train(

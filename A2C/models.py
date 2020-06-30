@@ -152,3 +152,64 @@ class MlpPolicy(nn.Module):
         pi_out = self.pi(out)
         v_out = self.v(out)
         return pi_out, v_out
+
+
+class CNNPolicy(nn.Module):
+
+    """
+    Policy for 5x5 grid
+    """
+
+    def __init__(self, n_drones, action_size):
+        super(CNNPolicy, self).__init__()
+        self.conv1 = nn.Conv2d(1, 16, 2)
+        self.drone_input = nn.Linear(n_drones * 2, 128)
+        self.conv2 = nn.Conv2d(16, 32, 2)
+        self.conv3 = nn.Conv2d(32, 64, 2)
+        self.conv4 = nn.Conv2d(64, 128, 2)
+        self.dense1 = nn.Linear(256, 128)
+        self.dense2 = nn.Linear(128, 64)
+        self.dense3 = nn.Linear(64, 32)
+        self.pi = nn.Linear(32, action_size)
+        self.v = nn.Linear(32, 1)
+
+        self.batch_norm = nn.BatchNorm2d(32)
+
+        self._init_weights()
+
+    def _init_weights(self):
+        layers = [
+            self.drone_input,
+            self.dense1,
+            self.dense2,
+            self.dense3,
+            self.pi,
+            self.v,
+        ]
+        for layer in layers:
+            layer.weight.data = ortho_weights(layer.weight.size())
+
+    def forward(self, state, drone):
+        ## Normalize
+        mu = state.mean()
+        std = state.std()
+        state = (state - mu) / std
+        state = state.unsqueeze(1)
+        ## Conv operations
+        state = F.leaky_relu(self.conv1(state))
+        state = F.leaky_relu(self.conv2(state))
+        state = self.batch_norm(state)
+        state = F.leaky_relu(self.conv3(state))
+        state = F.leaky_relu(self.conv4(state))
+        ## Concat
+        state = state.view(-1, 128)
+        drone = F.leaky_relu(self.drone_input(drone))
+        out = torch.cat([state, drone], dim=-1)
+        out = F.normalize(out)
+        ## Predict policies and values
+        out = F.leaky_relu(self.dense1(out))
+        out = F.leaky_relu(self.dense2(out))
+        out = F.leaky_relu(self.dense3(out))
+        pi_out = self.pi(out)
+        v_out = self.v(out)
+        return pi_out, v_out

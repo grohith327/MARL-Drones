@@ -7,11 +7,25 @@ from torch.autograd import Variable
 from tqdm.auto import tqdm
 import logging
 
-log_file = "A2C.log"
-logging.basicConfig(filename=log_file, level=logging.INFO, format="%(message)s")
+
+def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
+    if args.policy == "MLP":
+        obs = np.reshape(obs, [1, obs_size])
+        obs = Variable(torch.from_numpy(obs).float())
+
+    if args.policy == "CNN":
+        obs = np.reshape(obs, [1, args.grid_size, args.grid_size])
+        obs = Variable(torch.from_numpy(obs).float())
+
+    drone_pos = drone_pos.reshape((n_drones, 2))
+    drone_pos = Variable(torch.from_numpy(drone_pos).float().view(1, -1))
+    return obs, drone_pos
 
 
 def train(args, nets, optimizers, env, obs_size, n_drones):
+
+    log_file = f"A2C_{args.policy}.log"
+    logging.basicConfig(filename=log_file, level=logging.INFO, format="%(message)s")
 
     steps = []
     total_steps = 0
@@ -22,14 +36,11 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
     while total_steps < args.total_steps:
 
         obs = env.reset()
-        obs = np.reshape(obs, [1, obs_size])
         drone_pos = np.array(env.n_drones_pos)
-        drone_pos = drone_pos.reshape((n_drones, 2))
+        obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
         avg_rewards = []
 
         for _ in range(args.rollout_steps):
-            obs = Variable(torch.from_numpy(obs).float())
-            drone_pos = Variable(torch.from_numpy(drone_pos).float().view(1, -1))
 
             # network forward pass
             policies = []
@@ -46,9 +57,8 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
 
             # gather env data, reset done envs and update their obs
             obs, rewards, dones = env.step(actions)
-            obs = np.reshape(obs, [1, obs_size])
             drone_pos = np.array(env.n_drones_pos)
-            drone_pos = drone_pos.reshape((n_drones, 2))
+            obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
 
             # reset the LSTM state for done envs
             masks = (
@@ -69,8 +79,8 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
             values = torch.cat(values)
             steps.append((rewards, masks, actions, policies, values))
 
-        final_obs = Variable(torch.from_numpy(obs).float())
-        final_drone_pos = Variable(torch.from_numpy(drone_pos).float().view(1, -1))
+        final_obs = obs
+        final_drone_pos = drone_pos
         final_values = []
         for i in range(n_drones):
             _, final_v = nets[i](final_obs, final_drone_pos)
