@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
-from models import MlpPolicy, CNNPolicy
+from models import Policy
+from torch.distributions import Categorical
 from noVis_sim import DroneEnv
 import argparse
 
@@ -38,11 +39,7 @@ def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
 def load_models(args, state_size, n_drones, action_size):
     nets = []
     for i in range(n_drones):
-        if args.policy == "MLP":
-            model = MlpPolicy(state_size, n_drones, action_size)
-        else:
-            model = CNNPolicy(n_drones, action_size)
-
+        model = Policy(state_size, n_drones, action_size, policy_type=args.policy)
         model.load_state_dict(
             torch.load(f"A2C_models/{args.policy}_policy/A2C_drone_{i}.bin")
         )
@@ -84,11 +81,11 @@ while not done:
     for i in range(n_drones):
         p, v = nets[i](obs, drone_pos)
         probs = F.softmax(p, dim=-1)
-        a = probs.multinomial(probs.size()[0]).data
+        a = Categorical(probs).sample()[0]
 
         policies.append(p)
         values.append(v)
-        actions.append(a.numpy()[0, 0])
+        actions.append(a.numpy())
 
     obs, reward, done = env.step(actions)
     drone_pos = np.array(env.n_drones_pos)
