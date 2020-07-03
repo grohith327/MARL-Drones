@@ -62,8 +62,8 @@ class DroneEnv:
     def reset(self):
         self.init_env()
         grid = self.grid.copy()
-        grid = reduce(lambda x, y: x + y, grid)
         grid = np.array(grid)
+        grid = grid.T.flatten()
         return grid
 
     def _eucid_dist(self, x1, y1, x2, y2):
@@ -162,7 +162,7 @@ class DroneEnv:
                 break
 
         grid = self.grid.copy()
-        grid = reduce(lambda x, y: x + y, self.grid)
         grid = np.array(grid)
+        grid = grid.T.flatten()
 
         return grid, total_reward, done

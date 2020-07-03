@@ -5,9 +5,23 @@ from noVis_sim import DroneEnv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import argparse
 
-EPISODES = 1000
-BATCH_SIZE = 32
+parser = argparse.ArgumentParser(description="Deep Q-learning")
+parser.add_argument(
+    "--episodes", default=2000, type=int, help="total number of episodes"
+)
+parser.add_argument("--batch_size", default=32, type=int, help="batch size")
+parser.add_argument("--grid_size", type=int, default=5, help="Grid size, Default: 5x5")
+parser.add_argument("--n_drones", type=int, default=3, help="number of drones")
+parser.add_argument(
+    "--n_anamolous",
+    type=int,
+    default=5,
+    help="number of anomalous cells in environment",
+)
+
+args = parser.parse_args()
 
 
 class AgentModel(nn.Module):
@@ -23,11 +37,11 @@ class AgentModel(nn.Module):
         state = torch.tensor(state, dtype=torch.float)
         drone_pos = drone_pos.flatten()
         drone_pos = torch.tensor(drone_pos, dtype=torch.float).unsqueeze(0)
-        state_embed = F.leaky_relu(self.state_input(state))
-        drone_embed = F.leaky_relu(self.drone_input(drone_pos))
+        state_embed = torch.tanh(self.state_input(state))
+        drone_embed = torch.tanh(self.drone_input(drone_pos))
         out = torch.cat([state_embed, drone_embed], dim=-1)
-        out = F.leaky_relu(self.dense1(out))
-        out = F.leaky_relu(self.dense2(out))
+        out = torch.tanh(self.dense1(out))
+        out = torch.tanh(self.dense2(out))
         out = self.dense3(out)
         return out
 
@@ -37,7 +51,7 @@ class Agent:
         self.state_size = state_size
         self.action_size = action_size
         self.n_drones = n_drones
-        self.memory = deque(maxlen=2000)
+        self.memory = deque(maxlen=3000)
         self.gamma = 0.95
         self.epsilon = 1.0
         self.epsilon_min = 0.01
@@ -127,7 +141,13 @@ class Agent:
             self.models[i].load_state_dict(torch.load(f"{name}_drone_{i}.bin"))
 
 
-env = DroneEnv(row_count=5, col_count=5, n_drones=4, step_size=1.0)
+env = DroneEnv(
+    row_count=args.grid_size,
+    col_count=args.grid_size,
+    step_size=1.0,
+    n_anamolous=args.n_anamolous,
+    n_drones=args.n_drones,
+)
 
 state_size = env.state_size
 action_size = env.action_size
@@ -136,7 +156,7 @@ n_drones = env.n_drones
 agent = Agent(state_size, action_size, n_drones)
 done = False
 
-for e in range(EPISODES):
+for e in range(args.episodes):
     state = env.reset()
     state = np.reshape(state, [1, state_size])
     drone_pos = np.array(env.n_drones_pos)
@@ -155,12 +175,12 @@ for e in range(EPISODES):
         drone_pos = next_drone_pos
         print(
             "episode: {}/{}, timestep: {}/{}, reward: {}, e: {:.2}".format(
-                e, EPISODES, time + 1, 2000, reward, agent.epsilon
+                e, args.episodes, time + 1, 2000, reward, agent.epsilon
             )
         )
         if done:
             break
-        if len(agent.memory) > BATCH_SIZE:
-            agent.replay(BATCH_SIZE)
+        if len(agent.memory) > args.batch_size:
+            agent.replay(args.batch_size)
         if e % 10:
             agent.save("DQL_actions_pred")
