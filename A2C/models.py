@@ -45,9 +45,28 @@ class Policy(nn.Module):
         return pi, v
 
 
+class attn_module(nn.Module):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+        self.q = nn.Linear(in_features, out_features)
+        self.k = nn.Linear(in_features, out_features)
+        self.v = nn.Linear(in_features, out_features)
+
+    def forward(self, x):
+        query = self.q(x)
+        key = self.k(x)
+        value = self.v(x)
+
+        scores = torch.matmul(query, key.T)
+        attn_mask = F.softmax(scores, dim=-1)
+        out = attn_mask * value
+        return out
+
+
 class MlpPolicy(nn.Module):
     def __init__(self, obs_size, n_drones, action_size):
         super(MlpPolicy, self).__init__()
+        self.attn = attn_module(obs_size, obs_size)
         self.state_input = nn.Linear(obs_size, 128)
         self.drone_input = nn.Linear(n_drones * 2, 128)
         self.dense1 = nn.Linear(256, 128)
@@ -73,13 +92,14 @@ class MlpPolicy(nn.Module):
         mu = state.mean()
         std = state.std()
         state = (state - mu) / std
-        state_embed = F.tanh(self.state_input(state))
-        drone_embed = F.tanh(self.drone_input(drone_pos))
+        state = self.attn(state)
+        state_embed = F.relu(self.state_input(state))
+        drone_embed = F.relu(self.drone_input(drone_pos))
         out = torch.cat([state_embed, drone_embed], dim=-1)
         out = F.normalize(out)
-        out = F.tanh(self.dense1(out))
-        out = F.tanh(self.dense2(out))
-        out = F.tanh(self.dense3(out))
+        out = F.relu(self.dense1(out))
+        out = F.relu(self.dense2(out))
+        out = F.relu(self.dense3(out))
         out = self.dense4(out)
         return out
 
@@ -124,19 +144,19 @@ class CNNPolicy(nn.Module):
         state = (state - mu) / std
         state = state.unsqueeze(1)
         ## Conv operations
-        state = F.tanh(self.conv1(state))
-        state = F.tanh(self.conv2(state))
+        state = F.relu(self.conv1(state))
+        state = F.relu(self.conv2(state))
         state = self.batch_norm(state)
-        state = F.tanh(self.conv3(state))
-        state = F.tanh(self.conv4(state))
+        state = F.relu(self.conv3(state))
+        state = F.relu(self.conv4(state))
         ## Concat
         state = state.view(-1, 128)
-        drone = F.tanh(self.drone_input(drone))
+        drone = F.relu(self.drone_input(drone))
         out = torch.cat([state, drone], dim=-1)
         out = F.normalize(out)
         ## Predict policies and values
-        out = F.tanh(self.dense1(out))
-        out = F.tanh(self.dense2(out))
-        out = F.tanh(self.dense3(out))
+        out = F.relu(self.dense1(out))
+        out = F.relu(self.dense2(out))
+        out = F.relu(self.dense3(out))
         out = self.dense4(out)
         return out
