@@ -112,7 +112,7 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
         loss = (
             policy_loss
             + value_loss * args.value_coeff
-            - entropy_loss * args.entropy_coeff
+            + entropy_loss * args.entropy_coeff
         )
 
         loss.backward()
