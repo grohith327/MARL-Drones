@@ -37,9 +37,13 @@ class AgentModel(nn.Module):
         state = torch.tensor(state, dtype=torch.float)
         drone_pos = drone_pos.flatten()
         drone_pos = torch.tensor(drone_pos, dtype=torch.float).unsqueeze(0)
+        mu = state.mean()
+        std = state.std()
+        state = (state - mu) / std
         state_embed = torch.tanh(self.state_input(state))
         drone_embed = torch.tanh(self.drone_input(drone_pos))
         out = torch.cat([state_embed, drone_embed], dim=-1)
+        out = F.normalize(out)
         out = torch.tanh(self.dense1(out))
         out = torch.tanh(self.dense2(out))
         out = self.dense3(out)
@@ -182,5 +186,5 @@ for e in range(args.episodes):
             break
         if len(agent.memory) > args.batch_size:
             agent.replay(args.batch_size)
-        if e % 10:
+        if e % 1:
             agent.save("DQL_actions_pred")
