@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+from torch.distributions import Categorical
 from tqdm.auto import tqdm
 import logging
 
@@ -11,14 +12,21 @@ import logging
 def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
     if args.policy == "MLP":
         obs = np.reshape(obs, [1, obs_size])
-        obs = Variable(torch.from_numpy(obs).float())
 
     if args.policy == "CNN":
         obs = np.reshape(obs, [1, args.grid_size, args.grid_size])
+
+    if torch.is_tensor(obs):
+        obs = Variable(obs).float()
+    else:
         obs = Variable(torch.from_numpy(obs).float())
 
-    drone_pos = drone_pos.reshape((n_drones, 2))
-    drone_pos = Variable(torch.from_numpy(drone_pos).float().view(1, -1))
+    if torch.is_tensor(drone_pos):
+        drone_pos = drone_pos.view(n_drones, 2)
+        drone_pos = Variable(drone_pos).float().view(1, -1)
+    else:
+        drone_pos = drone_pos.reshape((n_drones, 2))
+        drone_pos = Variable(torch.from_numpy(drone_pos).float().view(1, -1))
     return obs, drone_pos
 
 
@@ -32,11 +40,12 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
     ep_rewards = 0.0
     grad_step = 0
 
+    obs = env.reset()
+    drone_pos = np.array(env.n_drones_pos)
+
     pbar = tqdm(total=args.total_steps)
     while total_steps < args.total_steps:
 
-        obs = env.reset()
-        drone_pos = np.array(env.n_drones_pos)
         obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
         avg_rewards = []
 
@@ -49,7 +58,7 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
             for i in range(n_drones):
                 p, v = nets[i](obs, drone_pos)
                 probs = F.softmax(p, dim=-1)
-                a = torch.argmax(probs)
+                a = Categorical(probs).sample()[0]
 
                 policies.append(p)
                 values.append(v)
@@ -57,6 +66,10 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
 
             # gather env data, reset done envs and update their obs
             obs, rewards, dones = env.step(actions)
+            ep_rewards += rewards
+            if dones:
+                ep_rewards = 0.0
+                obs = env.reset()
             drone_pos = np.array(env.n_drones_pos)
             obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
 
@@ -67,9 +80,6 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
 
             total_steps += 1
             pbar.update(1)
-            ep_rewards += rewards
-            if dones:
-                ep_rewards = 0.0
 
             avg_rewards.append(rewards)
             rewards = torch.tensor([rewards]).float().unsqueeze(1)
@@ -95,14 +105,14 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
         log_probs = F.log_softmax(policies, dim=-1)
         log_action_probs = log_probs.clone()
 
-        policy_loss = (-log_action_probs * Variable(advantages)).sum()
-        value_loss = (0.5 * (values - Variable(returns)) ** 2.0).sum()
-        entropy_loss = (log_probs * probs).sum()
+        policy_loss = (-log_action_probs * Variable(advantages)).mean()
+        value_loss = advantages.pow(2).mean()
+        entropy_loss = (-log_probs * probs).mean()
 
         loss = (
             policy_loss
             + value_loss * args.value_coeff
-            + entropy_loss * args.entropy_coeff
+            - entropy_loss * args.entropy_coeff
         )
 
         loss.backward()
@@ -142,12 +152,13 @@ def process_rollout(args, steps):
     # run Generalized Advantage Estimation, calculate returns, advantages
     for t in reversed(range(len(steps) - 1)):
         rewards, masks, actions, policies, values = steps[t]
-        _, _, _, _, next_values = steps[t + 1]
+        # _, _, _, _, next_values = steps[t + 1]
 
         returns = rewards + returns * args.gamma * masks
 
-        deltas = rewards + next_values.data * args.gamma * masks - values.data
-        advantages = advantages * args.gamma * args.lambd * masks + deltas
+        # deltas = rewards + next_values.data * args.gamma * masks - values.data
+        # advantages = advantages * args.gamma * args.lambd * masks + deltas
+        advantages = returns - values
 
         out[t] = actions, policies, values, returns, advantages
 

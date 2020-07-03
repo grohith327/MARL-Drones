@@ -1,12 +1,14 @@
 import numpy as np
+import random
+
 
 def mean_std_groups(x, y, group_size):
     num_groups = int(len(x) / group_size)
 
-    x, x_tail = x[:group_size * num_groups], x[group_size * num_groups:]
+    x, x_tail = x[: group_size * num_groups], x[group_size * num_groups :]
     x = x.reshape((num_groups, group_size))
 
-    y, y_tail = y[:group_size * num_groups], y[group_size * num_groups:]
+    y, y_tail = y[: group_size * num_groups], y[group_size * num_groups :]
     y = y.reshape((num_groups, group_size))
 
     x_means = x.mean(axis=1)

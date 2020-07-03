@@ -29,99 +29,31 @@ def ortho_weights(shape, scale=1.0):
         )
 
 
-def atari_initializer(module):
-    """ Parameter initializer for Atari models
+class Policy(nn.Module):
+    def __init__(self, obs_size, n_drones, action_size, policy_type="MLP"):
+        super(Policy, self).__init__()
+        if policy_type == "MLP":
+            self.actor = MlpPolicy(obs_size, n_drones, action_size)
+            self.critic = MlpPolicy(obs_size, n_drones, 1)
+        else:
+            self.actor = CNNPolicy(n_drones, action_size)
+            self.critic = CNNPolicy(n_drones, 1)
 
-    Initializes Linear, Conv2d, and LSTM weights.
-    """
-    classname = module.__class__.__name__
-
-    if classname == "Linear":
-        module.weight.data = ortho_weights(
-            module.weight.data.size(), scale=np.sqrt(2.0)
-        )
-        module.bias.data.zero_()
-
-    elif classname == "Conv2d":
-        module.weight.data = ortho_weights(
-            module.weight.data.size(), scale=np.sqrt(2.0)
-        )
-        module.bias.data.zero_()
-
-    elif classname == "LSTM":
-        for name, param in module.named_parameters():
-            if "weight_ih" in name:
-                param.data = ortho_weights(param.data.size(), scale=1.0)
-            if "weight_hh" in name:
-                param.data = ortho_weights(param.data.size(), scale=1.0)
-            if "bias" in name:
-                param.data.zero_()
-
-
-class AtariCNN(nn.Module):
-    def __init__(self, num_actions):
-        """ Basic convolutional actor-critic network for Atari 2600 games
-
-        Equivalent to the network in the original DQN paper.
-
-        Args:
-            num_actions (int): the number of available discrete actions
-        """
-        super().__init__()
-
-        self.conv = nn.Sequential(
-            nn.Conv2d(4, 32, 8, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, 4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, 3, stride=1),
-            nn.ReLU(),
-        )
-
-        self.fc = nn.Sequential(nn.Linear(64 * 7 * 7, 512), nn.ReLU())
-
-        self.pi = nn.Linear(512, num_actions)
-        self.v = nn.Linear(512, 1)
-
-        self.num_actions = num_actions
-
-        # parameter initialization
-        self.apply(atari_initializer)
-        self.pi.weight.data = ortho_weights(self.pi.weight.size(), scale=0.01)
-        self.v.weight.data = ortho_weights(self.v.weight.size())
-
-    def forward(self, conv_in):
-        """ Module forward pass
-
-        Args:
-            conv_in (Variable): convolutional input, shaped [N x 4 x 84 x 84]
-
-        Returns:
-            pi (Variable): action probability logits, shaped [N x self.num_actions]
-            v (Variable): value predictions, shaped [N x 1]
-        """
-        N = conv_in.size()[0]
-
-        conv_out = self.conv(conv_in).view(N, 64 * 7 * 7)
-
-        fc_out = self.fc(conv_out)
-
-        pi_out = self.pi(fc_out)
-        v_out = self.v(fc_out)
-
-        return pi_out, v_out
+    def forward(self, state, drone_pos):
+        pi = self.actor(state, drone_pos)
+        v = self.critic(state, drone_pos)
+        return pi, v
 
 
 class MlpPolicy(nn.Module):
-    def __init__(self, state_size, n_drones, action_size):
+    def __init__(self, obs_size, n_drones, action_size):
         super(MlpPolicy, self).__init__()
-        self.state_input = nn.Linear(state_size, 128)
+        self.state_input = nn.Linear(obs_size, 128)
         self.drone_input = nn.Linear(n_drones * 2, 128)
         self.dense1 = nn.Linear(256, 128)
         self.dense2 = nn.Linear(128, 64)
         self.dense3 = nn.Linear(64, 32)
-        self.pi = nn.Linear(32, action_size)
-        self.v = nn.Linear(32, 1)
+        self.dense4 = nn.Linear(32, action_size)
 
         self._init_weights()
 
@@ -132,8 +64,7 @@ class MlpPolicy(nn.Module):
             self.dense1,
             self.dense2,
             self.dense3,
-            self.pi,
-            self.v,
+            self.dense4,
         ]
         for layer in layers:
             layer.weight.data = ortho_weights(layer.weight.size())
@@ -149,9 +80,8 @@ class MlpPolicy(nn.Module):
         out = F.tanh(self.dense1(out))
         out = F.tanh(self.dense2(out))
         out = F.tanh(self.dense3(out))
-        pi_out = self.pi(out)
-        v_out = self.v(out)
-        return pi_out, v_out
+        out = self.dense4(out)
+        return out
 
 
 class CNNPolicy(nn.Module):
@@ -170,8 +100,7 @@ class CNNPolicy(nn.Module):
         self.dense1 = nn.Linear(256, 128)
         self.dense2 = nn.Linear(128, 64)
         self.dense3 = nn.Linear(64, 32)
-        self.pi = nn.Linear(32, action_size)
-        self.v = nn.Linear(32, 1)
+        self.dense4 = nn.Linear(32, action_size)
 
         self.batch_norm = nn.BatchNorm2d(32)
 
@@ -183,8 +112,7 @@ class CNNPolicy(nn.Module):
             self.dense1,
             self.dense2,
             self.dense3,
-            self.pi,
-            self.v,
+            self.dense4,
         ]
         for layer in layers:
             layer.weight.data = ortho_weights(layer.weight.size())
@@ -210,6 +138,5 @@ class CNNPolicy(nn.Module):
         out = F.tanh(self.dense1(out))
         out = F.tanh(self.dense2(out))
         out = F.tanh(self.dense3(out))
-        pi_out = self.pi(out)
-        v_out = self.v(out)
-        return pi_out, v_out
+        out = self.dense4(out)
+        return out

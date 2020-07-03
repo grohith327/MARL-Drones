@@ -1,16 +1,18 @@
 import torch
 import torch.optim as optim
-from models import MlpPolicy, CNNPolicy
+from models import Policy
 from noVis_sim import DroneEnv
 from train import train
 import argparse
 
 parser = argparse.ArgumentParser(description="A2C (Advantage Actor-Critic)")
-parser.add_argument("--rollout-steps", type=int, default=20, help="steps per rollout")
+parser.add_argument(
+    "--rollout_steps", type=int, default=5, help="number of rollout steps"
+)
 parser.add_argument(
     "--total-steps",
     type=int,
-    default=int(1e6),
+    default=int(1e7),
     help="total number of steps to train for",
 )
 parser.add_argument("--lr", type=float, default=1e-4, help="learning rate")
@@ -61,11 +63,10 @@ state_size = env.state_size
 action_size = env.action_size
 n_drones = env.n_drones
 
-if args.policy == "MLP":
-    nets = [MlpPolicy(state_size, n_drones, action_size) for _ in range(n_drones)]
-else:
-    nets = [CNNPolicy(n_drones, action_size) for _ in range(n_drones)]
-
+nets = [
+    Policy(state_size, n_drones, action_size, policy_type=args.policy)
+    for _ in range(n_drones)
+]
 optimizers = [optim.AdamW(nets[i].parameters(), lr=args.lr) for i in range(n_drones)]
 
 train(
