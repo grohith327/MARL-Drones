@@ -142,13 +142,13 @@ class MlpPolicy(nn.Module):
         mu = state.mean()
         std = state.std()
         state = (state - mu) / std
-        state_embed = F.leaky_relu(self.state_input(state))
-        drone_embed = F.leaky_relu(self.drone_input(drone_pos))
+        state_embed = F.tanh(self.state_input(state))
+        drone_embed = F.tanh(self.drone_input(drone_pos))
         out = torch.cat([state_embed, drone_embed], dim=-1)
         out = F.normalize(out)
-        out = F.leaky_relu(self.dense1(out))
-        out = F.leaky_relu(self.dense2(out))
-        out = F.leaky_relu(self.dense3(out))
+        out = F.tanh(self.dense1(out))
+        out = F.tanh(self.dense2(out))
+        out = F.tanh(self.dense3(out))
         pi_out = self.pi(out)
         v_out = self.v(out)
         return pi_out, v_out
@@ -196,20 +196,20 @@ class CNNPolicy(nn.Module):
         state = (state - mu) / std
         state = state.unsqueeze(1)
         ## Conv operations
-        state = F.leaky_relu(self.conv1(state))
-        state = F.leaky_relu(self.conv2(state))
+        state = F.tanh(self.conv1(state))
+        state = F.tanh(self.conv2(state))
         state = self.batch_norm(state)
-        state = F.leaky_relu(self.conv3(state))
-        state = F.leaky_relu(self.conv4(state))
+        state = F.tanh(self.conv3(state))
+        state = F.tanh(self.conv4(state))
         ## Concat
         state = state.view(-1, 128)
-        drone = F.leaky_relu(self.drone_input(drone))
+        drone = F.tanh(self.drone_input(drone))
         out = torch.cat([state, drone], dim=-1)
         out = F.normalize(out)
         ## Predict policies and values
-        out = F.leaky_relu(self.dense1(out))
-        out = F.leaky_relu(self.dense2(out))
-        out = F.leaky_relu(self.dense3(out))
+        out = F.tanh(self.dense1(out))
+        out = F.tanh(self.dense2(out))
+        out = F.tanh(self.dense3(out))
         pi_out = self.pi(out)
         v_out = self.v(out)
         return pi_out, v_out
