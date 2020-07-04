@@ -7,6 +7,7 @@ from torch.autograd import Variable
 from torch.distributions import Categorical
 from tqdm.auto import tqdm
 import logging
+from curiosity import ICM
 
 
 def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
@@ -43,10 +44,13 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
     obs = env.reset()
     drone_pos = np.array(env.n_drones_pos)
 
+    icm = ICM(obs_size=obs_size, action_space=env.action_size)
+
     pbar = tqdm(total=args.total_steps)
     while total_steps < args.total_steps:
 
         obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
+        curr_state = obs
         avg_rewards = []
 
         for _ in range(args.rollout_steps):
@@ -72,6 +76,14 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
                 obs = env.reset()
             drone_pos = np.array(env.n_drones_pos)
             obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
+            next_state = obs
+            ## ICM for one drone
+            rewards += icm(
+                a_t=torch.tensor(actions[0], dtype=torch.long),
+                a_t_logits=policies[0].detach(),
+                s_t=curr_state,
+                s_t1=next_state,
+            )
 
             # reset the LSTM state for done envs
             masks = (
