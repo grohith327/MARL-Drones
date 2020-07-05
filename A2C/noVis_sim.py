@@ -165,4 +165,7 @@ class DroneEnv:
         grid = np.array(grid)
         grid = grid.T.flatten()
 
+        if done:
+            total_reward += 100
+
         return grid, total_reward, done
