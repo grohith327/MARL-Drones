@@ -77,13 +77,15 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
             drone_pos = np.array(env.n_drones_pos)
             obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
             next_state = obs
-            ## ICM for one drone
-            rewards += icm(
-                a_t=torch.tensor(actions[0], dtype=torch.long),
-                a_t_logits=policies[0].detach(),
-                s_t=curr_state,
-                s_t1=next_state,
-            )
+            avg_rewards.append(rewards)
+            if args.enable_icm:
+                ## ICM for one drone
+                rewards += icm(
+                    a_t=torch.tensor(actions[0], dtype=torch.long),
+                    a_t_logits=policies[0].detach(),
+                    s_t=curr_state,
+                    s_t1=next_state,
+                )
 
             # reset the LSTM state for done envs
             masks = (
@@ -93,7 +95,6 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
             total_steps += 1
             pbar.update(1)
 
-            avg_rewards.append(rewards)
             rewards = torch.tensor([rewards]).float().unsqueeze(1)
 
             actions = torch.tensor(actions)

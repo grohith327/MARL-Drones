@@ -5,6 +5,18 @@ from noVis_sim import DroneEnv
 from train import train
 import argparse
 
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
 parser = argparse.ArgumentParser(description="A2C (Advantage Actor-Critic)")
 parser.add_argument(
     "--rollout_steps", type=int, default=5, help="number of rollout steps"
@@ -45,6 +57,9 @@ parser.add_argument(
     type=int,
     default=5,
     help="number of anomalous cells in environment",
+)
+parser.add_argument(
+    "--enable_icm", type=str2bool, default=False, help="use intrinsic curiosity module"
 )
 
 args = parser.parse_args()
