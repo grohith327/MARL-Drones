@@ -14,7 +14,7 @@ def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
     if args.policy == "MLP":
         obs = np.reshape(obs, [1, obs_size])
 
-    if args.policy == "CNN":
+    if args.policy == "CNN" or args.policy == "Attn":
         obs = np.reshape(obs, [1, args.grid_size, args.grid_size])
 
     if torch.is_tensor(obs):
@@ -33,7 +33,9 @@ def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
 
 def train(args, nets, optimizers, env, obs_size, n_drones):
 
-    log_file = f"A2C_{args.policy}.log"
+    icm_model_name = "ICM_" if args.enable_icm else ""
+
+    log_file = f"A2C_{icm_model_name}{args.policy}.log"
     logging.basicConfig(filename=log_file, level=logging.INFO, format="%(message)s")
 
     steps = []
@@ -41,13 +43,14 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
     ep_rewards = 0.0
     grad_step = 0
 
-    obs = env.reset()
-    drone_pos = np.array(env.n_drones_pos)
-
-    icm = ICM(obs_size=obs_size, action_space=env.action_size)
+    if args.enable_icm:
+        icm = ICM(obs_size=obs_size, action_space=env.action_size)
 
     pbar = tqdm(total=args.total_steps)
     while total_steps < args.total_steps:
+
+        obs = env.reset()
+        drone_pos = np.array(env.n_drones_pos)
 
         obs, drone_pos = prepare_inputs(args, obs, drone_pos, n_drones, obs_size)
         curr_state = obs
@@ -145,7 +148,7 @@ def train(args, nets, optimizers, env, obs_size, n_drones):
             for i in range(n_drones):
                 torch.save(
                     nets[i].state_dict(),
-                    f"A2C_models/{args.policy}_policy/A2C_drone_{i}.bin",
+                    f"A2C_models/{args.policy}_policy/A2C_drone_{icm_model_name}{i}.bin",
                 )
 
         pbar.set_postfix(loss=loss.item(), reward=np.mean(avg_rewards))

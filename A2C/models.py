@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+import math
 
 
 def ortho_weights(shape, scale=1.0):
@@ -35,6 +36,9 @@ class Policy(nn.Module):
         if policy_type == "MLP":
             self.actor = MlpPolicy(obs_size, n_drones, action_size)
             self.critic = MlpPolicy(obs_size, n_drones, 1)
+        elif policy_type == "Attn":
+            self.actor = ConvAttn(int(math.sqrt(obs_size)), n_drones, action_size)
+            self.critic = ConvAttn(int(math.sqrt(obs_size)), n_drones, 1)
         else:
             self.actor = CNNPolicy(n_drones, action_size)
             self.critic = CNNPolicy(n_drones, 1)
@@ -159,4 +163,40 @@ class CNNPolicy(nn.Module):
         out = F.relu(self.dense2(out))
         out = F.relu(self.dense3(out))
         out = self.dense4(out)
+        return out
+
+
+class ConvAttn(nn.Module):
+    def __init__(self, obs_size, n_drones, action_space):
+        super().__init__()
+        self.weights1 = nn.Parameter(torch.randn(obs_size, obs_size))
+        self.conv1 = nn.Conv2d(1, 4, obs_size, padding=2)
+        self.weights2 = nn.Parameter(torch.randn(obs_size, obs_size))
+        self.conv2 = nn.Conv2d(4, 8, obs_size, padding=1)
+        self.weights3 = nn.Parameter(torch.randn(obs_size // 2 + 1, obs_size // 2 + 1))
+        self.conv3 = nn.Conv2d(8, 16, obs_size // 2 + 1, padding=0)
+        self.drone_input = nn.Linear(n_drones * 2, 16)
+        self.dense = nn.Linear(32, action_space)
+
+    def forward(self, state, drone):
+        state = state.unsqueeze(1)
+        self.weights1.data = (
+            self.weights1.view(-1).softmax(-1).view(*self.weights1.size())
+        )
+        state = torch.matmul(state, self.weights1)
+        state = F.gelu(self.conv1(state))
+        self.weights2.data = (
+            self.weights2.view(-1).softmax(-1).view(*self.weights2.size())
+        )
+        state = torch.matmul(state, self.weights2)
+        state = F.gelu(self.conv2(state))
+        self.weights3.data = (
+            self.weights3.view(-1).softmax(-1).view(*self.weights3.size())
+        )
+        state = torch.matmul(state, self.weights3)
+        state = F.gelu(self.conv3(state))
+        state = state.squeeze(-1).squeeze(-1)
+        drone = self.drone_input(drone)
+        out = torch.cat((state, drone), dim=-1)
+        out = self.dense(out)
         return out

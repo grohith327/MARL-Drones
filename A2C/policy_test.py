@@ -9,7 +9,7 @@ from noVis_sim import DroneEnv
 import argparse
 
 parser = argparse.ArgumentParser(description="A2C Policy test")
-parser.add_argument("--policy", type=str, default="MLP", help="CNN or MLP")
+parser.add_argument("--policy", type=str, default="MLP", help="CNN, MLP, Attn policy")
 parser.add_argument("--grid_size", type=int, default=5, help="Grid size, Default: 5x5")
 parser.add_argument("--n_drones", type=int, default=3, help="number of drones")
 parser.add_argument(
@@ -27,7 +27,7 @@ def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
         obs = np.reshape(obs, [1, obs_size])
         obs = Variable(torch.from_numpy(obs).float())
 
-    if args.policy == "CNN":
+    if args.policy == "CNN" or args.policy == "Attn":
         obs = np.reshape(obs, [1, args.grid_size, args.grid_size])
         obs = Variable(torch.from_numpy(obs).float())
 

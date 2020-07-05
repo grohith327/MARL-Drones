@@ -19,7 +19,7 @@ def str2bool(v):
 
 parser = argparse.ArgumentParser(description="A2C (Advantage Actor-Critic)")
 parser.add_argument(
-    "--rollout_steps", type=int, default=5, help="number of rollout steps"
+    "--rollout_steps", type=int, default=100, help="number of rollout steps"
 )
 parser.add_argument(
     "--total-steps",
@@ -49,7 +49,7 @@ parser.add_argument(
     "--save_freq", type=int, default=10, help="frequency to save model weights"
 )
 parser.add_argument("--grad_acc", type=int, default=1, help="grad accumulation steps")
-parser.add_argument("--policy", type=str, default="MLP", help="CNN or MLP")
+parser.add_argument("--policy", type=str, default="MLP", help="CNN, MLP, Attn policy")
 parser.add_argument("--grid_size", type=int, default=5, help="Grid size, Default: 5x5")
 parser.add_argument("--n_drones", type=int, default=3, help="number of drones")
 parser.add_argument(
@@ -64,7 +64,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-assert args.policy == "CNN" or args.policy == "MLP", "policy must be CNN or MLP"
+assert args.policy in ["CNN", "MLP", "Attn"], "policy must be one of [CNN, MLP, Attn]"
 
 env = DroneEnv(
     row_count=args.grid_size,
