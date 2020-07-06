@@ -50,15 +50,18 @@ class Policy(nn.Module):
 
 
 class attn_module(nn.Module):
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features, out_features, n_drones):
         super().__init__()
+        self.drone_input = nn.Linear(n_drones * 2, out_features)
         self.q = nn.Linear(in_features, out_features)
         self.k = nn.Linear(in_features, out_features)
         self.v = nn.Linear(in_features, out_features)
 
-    def forward(self, x):
+    def forward(self, x, drone_pos):
         query = self.q(x)
-        key = self.k(x)
+        key1 = self.k(x)
+        key2 = self.drone_input(drone_pos)
+        key = key1 + key2
         value = self.v(x)
 
         scores = torch.matmul(query, key.T)
@@ -70,12 +73,15 @@ class attn_module(nn.Module):
 class MlpPolicy(nn.Module):
     def __init__(self, obs_size, n_drones, action_size):
         super(MlpPolicy, self).__init__()
-        self.attn = attn_module(obs_size, obs_size)
-        self.state_input = nn.Linear(obs_size, 128)
-        self.drone_input = nn.Linear(n_drones * 2, 128)
+        self.gru = nn.GRU(obs_size, obs_size)
+
+        self.attn1 = attn_module(obs_size, obs_size, n_drones)
+        self.state_input = nn.Linear(obs_size, 256)
         self.dense1 = nn.Linear(256, 128)
+        self.attn2 = attn_module(128, 128, n_drones)
         self.dense2 = nn.Linear(128, 64)
         self.dense3 = nn.Linear(64, 32)
+        self.attn3 = attn_module(32, 32, n_drones)
         self.dense4 = nn.Linear(32, action_size)
 
         self._init_weights()
@@ -83,7 +89,6 @@ class MlpPolicy(nn.Module):
     def _init_weights(self):
         layers = [
             self.state_input,
-            self.drone_input,
             self.dense1,
             self.dense2,
             self.dense3,
@@ -96,14 +101,16 @@ class MlpPolicy(nn.Module):
         mu = state.mean()
         std = state.std()
         state = (state - mu) / std
-        state = self.attn(state)
-        state_embed = F.relu(self.state_input(state))
-        drone_embed = F.relu(self.drone_input(drone_pos))
-        out = torch.cat([state_embed, drone_embed], dim=-1)
+        state, _ = self.gru(state.view(len(state), 1, -1))
+        state = state.squeeze(1)
+        state = self.attn1(state, drone_pos)
+        out = F.relu(self.state_input(state))
         out = F.normalize(out)
         out = F.relu(self.dense1(out))
+        out = self.attn2(out, drone_pos)
         out = F.relu(self.dense2(out))
         out = F.relu(self.dense3(out))
+        out = self.attn3(out, drone_pos)
         out = self.dense4(out)
         return out
 
