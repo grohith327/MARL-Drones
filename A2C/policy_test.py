@@ -8,6 +8,18 @@ from torch.distributions import Categorical
 from noVis_sim import DroneEnv
 import argparse
 
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
 parser = argparse.ArgumentParser(description="A2C Policy test")
 parser.add_argument("--policy", type=str, default="MLP", help="CNN, MLP, Attn policy")
 parser.add_argument("--grid_size", type=int, default=5, help="Grid size, Default: 5x5")
@@ -18,8 +30,12 @@ parser.add_argument(
     default=5,
     help="number of anomalous cells in environment",
 )
+parser.add_argument(
+    "--enable_icm", type=str2bool, default=False, help="use intrinsic curiosity module"
+)
 
 args = parser.parse_args()
+icm_model_name = "ICM_" if args.enable_icm else ""
 
 
 def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
@@ -41,7 +57,9 @@ def load_models(args, state_size, n_drones, action_size):
     for i in range(n_drones):
         model = Policy(state_size, n_drones, action_size, policy_type=args.policy)
         model.load_state_dict(
-            torch.load(f"A2C_models/{args.policy}_policy/A2C_drone_{i}.bin")
+            torch.load(
+                f"A2C_models/{args.policy}_policy/A2C_drone_{icm_model_name}{i}.bin"
+            )
         )
         nets.append(model)
     return nets
