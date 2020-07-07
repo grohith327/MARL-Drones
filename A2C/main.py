@@ -1,9 +1,14 @@
 import torch
 import torch.optim as optim
-from models import Policy
+
+# from models import Policy
 from noVis_sim import DroneEnv
-from train import train
+from train import train, learn
 import argparse
+import sys
+
+sys.path.insert(0, "pytorch-a2c-ppo-acktr-gail/")
+from a2c_ppo_acktr.model import Policy
 
 
 def str2bool(v):
@@ -19,7 +24,7 @@ def str2bool(v):
 
 parser = argparse.ArgumentParser(description="A2C (Advantage Actor-Critic)")
 parser.add_argument(
-    "--rollout_steps", type=int, default=100, help="number of rollout steps"
+    "--rollout_steps", type=int, default=25, help="number of rollout steps"
 )
 parser.add_argument(
     "--total-steps",
@@ -27,8 +32,7 @@ parser.add_argument(
     default=int(1e7),
     help="total number of steps to train for",
 )
-parser.add_argument("--lr", type=float, default=1e-4, help="learning rate")
-parser.add_argument("--gamma", type=float, default=0.99, help="gamma parameter for GAE")
+parser.add_argument("--lr", type=float, default=2e-4, help="learning rate")
 parser.add_argument(
     "--lambd", type=float, default=1.00, help="lambda parameter for GAE"
 )
@@ -61,6 +65,30 @@ parser.add_argument(
 parser.add_argument(
     "--enable_icm", type=str2bool, default=False, help="use intrinsic curiosity module"
 )
+parser.add_argument(
+    "--gamma",
+    type=float,
+    default=0.99,
+    help="discount factor for rewards (default: 0.99)",
+)
+parser.add_argument(
+    "--gae-lambda",
+    type=float,
+    default=0.95,
+    help="gae lambda parameter (default: 0.95)",
+)
+parser.add_argument(
+    "--entropy-coef",
+    type=float,
+    default=0.01,
+    help="entropy term coefficient (default: 0.01)",
+)
+parser.add_argument(
+    "--value-loss-coef",
+    type=float,
+    default=0.5,
+    help="value loss coefficient (default: 0.5)",
+)
 
 args = parser.parse_args()
 
@@ -78,16 +106,29 @@ state_size = env.state_size
 action_size = env.action_size
 n_drones = env.n_drones
 
-nets = [
-    Policy(state_size, n_drones, action_size, policy_type=args.policy)
-    for _ in range(n_drones)
-]
-optimizers = [optim.AdamW(nets[i].parameters(), lr=args.lr) for i in range(n_drones)]
+# nets = [
+#     Policy(state_size, n_drones, action_size, policy_type=args.policy)
+#     for _ in range(n_drones)
+# ]
+# optimizers = [optim.AdamW(nets[i].parameters(), lr=args.lr) for i in range(n_drones)]
 
-train(
+# train(
+#     args=args,
+#     nets=nets,
+#     optimizers=optimizers,
+#     env=env,
+#     obs_size=state_size,
+#     n_drones=n_drones,
+# )
+
+
+actor_critic = Policy((state_size,), (action_size,), base_kwargs={"recurrent": True})
+optimizer = optim.RMSprop(actor_critic.parameters(), lr=args.lr)
+
+learn(
     args=args,
-    nets=nets,
-    optimizers=optimizers,
+    actor_critic=actor_critic,
+    optimizer=optimizer,
     env=env,
     obs_size=state_size,
     n_drones=n_drones,

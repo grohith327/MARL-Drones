@@ -7,4 +7,3 @@ __pycache__
 *.jpg
 *.ipynb
 *.bin
-pytorch-a2c-ppo-acktr-gail/

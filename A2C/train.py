@@ -8,6 +8,7 @@ from torch.distributions import Categorical
 from tqdm.auto import tqdm
 import logging
 from curiosity import ICM
+from rollouts import RolloutStorage
 
 
 def prepare_inputs(args, obs, drone_pos, n_drones, obs_size):
@@ -180,3 +181,108 @@ def process_rollout(args, steps):
 
     # return data as batched Tensors, Variables
     return map(lambda x: torch.cat(x, 0), zip(*out))
+
+
+def agent_update(args, rollouts, actor_critic, optimizer):
+
+    values, action_log_probs, dist_entropy, _ = actor_critic.evaluate_actions(
+        rollouts.obs[:-1],
+        rollouts.recurrent_hidden_states[0].unsqueeze(0),
+        rollouts.masks[:-1].view(-1, 1),
+        rollouts.actions.unsqueeze(0),
+    )
+
+    advantages = rollouts.returns[:-1] - values
+    value_loss = advantages.pow(2).mean()
+    action_loss = -(advantages.detach() * action_log_probs).mean()
+
+    loss = (
+        value_loss * args.value_loss_coef
+        + action_loss
+        - dist_entropy * args.entropy_coef
+    )
+
+    loss.backward()
+    optimizer.step()
+
+    return loss.item()
+
+
+def learn(args, actor_critic, optimizer, env, obs_size, n_drones):
+
+    icm_model_name = "ICM_" if args.enable_icm else ""
+
+    log_file = f"A2C_{icm_model_name}{args.policy}.log"
+    logging.basicConfig(filename=log_file, level=logging.INFO, format="%(message)s")
+
+    rollouts = RolloutStorage(
+        num_steps=args.rollout_steps,
+        obs_size=obs_size,
+        recurrent_hidden_state_size=actor_critic.recurrent_hidden_state_size,
+    )
+
+    obs = env.reset()
+    obs = torch.tensor(obs, dtype=torch.float)
+    rollouts.obs[0].copy_(obs)
+
+    pbar = tqdm(range(args.total_steps))
+    for j in pbar:
+
+        eps_rewards = []
+
+        for step in range(args.rollout_steps):
+
+            with torch.no_grad():
+                (
+                    value,
+                    action,
+                    action_log_prob,
+                    recurrent_hidden_states,
+                ) = actor_critic.act(
+                    rollouts.obs[step].unsqueeze(0),
+                    rollouts.recurrent_hidden_states[step].unsqueeze(0),
+                    rollouts.masks[step].unsqueeze(0),
+                )
+
+            obs, reward, done = env.step([action.item()])
+            eps_rewards.append(reward)
+
+            obs = torch.tensor(obs, dtype=torch.float)
+            reward = torch.tensor(reward, dtype=torch.float)
+            masks = torch.tensor([0.0 if done else 1.0], dtype=torch.float)
+
+            rollouts.insert(
+                obs,
+                recurrent_hidden_states.squeeze(),
+                action.squeeze(),
+                action_log_prob.squeeze(),
+                value.squeeze(),
+                reward,
+                masks,
+            )
+
+        with torch.no_grad():
+            next_value = actor_critic.get_value(
+                rollouts.obs[-1].unsqueeze(0),
+                rollouts.recurrent_hidden_states[-1].unsqueeze(0),
+                rollouts.masks[-1].unsqueeze(0),
+            )
+
+        rollouts.compute_returns(next_value, args.gamma, args.gae_lambda)
+
+        loss_value = agent_update(args, rollouts, actor_critic, optimizer)
+        rollouts.after_update()
+
+        pbar.set_postfix(
+            loss=loss_value,
+            avg_reward=np.mean(eps_rewards),
+            min_reward=np.min(eps_rewards),
+            max_reward=np.max(eps_rewards),
+        )
+
+        if (j + 1) % args.save_freq == 0:
+            torch.save(
+                actor_critic.state_dict(),
+                f"A2C_models/{args.policy}_policy/A2C_drone_1_new_policy.bin",
+            )
+
