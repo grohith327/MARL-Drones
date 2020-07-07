@@ -32,14 +32,15 @@ state_size = env.state_size
 action_size = env.action_size
 n_drones = env.n_drones
 
-actor_critic = Policy((state_size,), (action_size,), base_kwargs={"recurrent": True})
+actor_critic = Policy(
+    (state_size + n_drones * 2,), (action_size,), base_kwargs={"recurrent": True}
+)
 actor_critic.load_state_dict(torch.load(args.model_path))
 
 recurrent_hidden_states = torch.zeros(1, actor_critic.recurrent_hidden_state_size)
 masks = torch.zeros(1, 1)
 
 obs = env.reset()
-obs = torch.tensor(obs, dtype=torch.float)
 done = False
 
 step = 0
@@ -48,13 +49,17 @@ print(f"Drone positions:{env.n_drones_pos}")
 temp_st = obs.reshape((5, 5))
 print(temp_st, "\n")
 
+drone_pos = env.n_drones_pos
+obs = np.concatenate((obs, drone_pos[0]), -1)
+obs = torch.tensor(obs, dtype=torch.float)
+
 while not done:
     with torch.no_grad():
         value, action, _, recurrent_hidden_states = actor_critic.act(
             obs.unsqueeze(0), recurrent_hidden_states, masks, deterministic=True
         )
 
-    obs, reward, done = env.step(action)
+    obs, reward, done = env.step([action.item()])
 
     if (step + 1) % 1000:
         print(f"Step: {step+1}")
@@ -63,6 +68,8 @@ while not done:
         temp_st = obs.reshape((5, 5))
         print(temp_st, "\n")
 
+    drone_pos = env.n_drones_pos
+    obs = np.concatenate((obs, drone_pos[0]), -1)
     obs = torch.tensor(obs, dtype=torch.float)
 
     masks.fill_(0.0 if done else 1.0)
