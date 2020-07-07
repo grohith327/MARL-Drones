@@ -61,7 +61,7 @@ while not done:
 
     obs, reward, done = env.step([action.item()])
 
-    if (step + 1) % 1000:
+    if (step + 1) % 1000 == 0:
         print(f"Step: {step+1}")
         print(f"Action: {action.item()}")
         print(f"Drone positions:{env.n_drones_pos}")
