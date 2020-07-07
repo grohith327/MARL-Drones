@@ -210,23 +210,23 @@ def agent_update(args, rollouts, actor_critic, optimizer):
 
 def learn(args, actor_critic, optimizer, env, obs_size, n_drones):
 
-    icm_model_name = "ICM_" if args.enable_icm else ""
-
-    log_file = f"A2C_{icm_model_name}{args.policy}.log"
+    log_file = f"A2C_new_policy.log"
     logging.basicConfig(filename=log_file, level=logging.INFO, format="%(message)s")
 
     rollouts = RolloutStorage(
         num_steps=args.rollout_steps,
-        obs_size=obs_size,
+        obs_size=obs_size + n_drones * 2,
         recurrent_hidden_state_size=actor_critic.recurrent_hidden_state_size,
     )
 
-    obs = env.reset()
-    obs = torch.tensor(obs, dtype=torch.float)
-    rollouts.obs[0].copy_(obs)
-
     pbar = tqdm(range(args.total_steps))
     for j in pbar:
+
+        obs = env.reset()
+        drone_pos = env.n_drones_pos
+        obs = np.concatenate((obs, drone_pos[0]), -1)
+        obs = torch.tensor(obs, dtype=torch.float)
+        rollouts.obs[0].copy_(obs)
 
         eps_rewards = []
 
@@ -246,6 +246,8 @@ def learn(args, actor_critic, optimizer, env, obs_size, n_drones):
 
             obs, reward, done = env.step([action.item()])
             eps_rewards.append(reward)
+            drone_pos = env.n_drones_pos
+            obs = np.concatenate((obs, drone_pos[0]), -1)
 
             obs = torch.tensor(obs, dtype=torch.float)
             reward = torch.tensor(reward, dtype=torch.float)

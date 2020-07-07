@@ -29,7 +29,7 @@ parser.add_argument(
 parser.add_argument(
     "--total-steps",
     type=int,
-    default=int(1e7),
+    default=int(1e6),
     help="total number of steps to train for",
 )
 parser.add_argument("--lr", type=float, default=2e-4, help="learning rate")
@@ -122,7 +122,9 @@ n_drones = env.n_drones
 # )
 
 
-actor_critic = Policy((state_size,), (action_size,), base_kwargs={"recurrent": True})
+actor_critic = Policy(
+    (state_size + n_drones * 2,), (action_size,), base_kwargs={"recurrent": True}
+)
 optimizer = optim.RMSprop(actor_critic.parameters(), lr=args.lr)
 
 learn(

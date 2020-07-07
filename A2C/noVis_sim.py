@@ -138,14 +138,15 @@ class DroneEnv:
         punsh_flag = False
         if self.step_func_count > ((self.row_count * self.col_count) / self.step_size):
             punsh_flag = True
-        if punsh_flag:
-            total_reward -= 1.0
-            # total_reward -= (0.5) * (
-            #     self.step_func_count
-            #     - (self.row_count * self.col_count) / self.step_size
-            # )  ## Linearly increasing punishment as env runs
-        else:
+        # if punsh_flag:
+        # total_reward -= 1.0
+        # total_reward -= (0.5) * (
+        #     self.step_func_count
+        #     - (self.row_count * self.col_count) / self.step_size
+        # )  ## Linearly increasing punishment as env runs
+        if not punsh_flag:
             total_reward += 1.0 if self._drone_dist() > 0 else 0.0
+        total_reward -= 1.0
         # total_reward += (0.2 * self._drone_dist()) * (1.01) ** (
         #     -self.step_func_count
         # )  ## Exponentialy decreasing reward as drones spread out
