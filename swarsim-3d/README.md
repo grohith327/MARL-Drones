@@ -1,5 +1,7 @@
 # Swarmsim
 
+#### Note: The code for 3D simulation is taken and adopted from [this](https://github.com/sgowal/swarmsim) repo.
+
 Swarmsim is a lightweight simulator of robotic swarms.
 It is flexible and it allows anyone to change the behavior of both robots and supervisor agents.
 
