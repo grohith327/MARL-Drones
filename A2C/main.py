@@ -122,15 +122,18 @@ n_drones = env.n_drones
 # )
 
 
-actor_critic = Policy(
-    (state_size + n_drones * 2,), (action_size,), base_kwargs={"recurrent": True}
-)
-optimizer = optim.RMSprop(actor_critic.parameters(), lr=args.lr)
+actor_critics = [
+    Policy((state_size + 2,), (action_size,), base_kwargs={"recurrent": True})
+    for _ in range(n_drones)
+]
+optimizers = [
+    optim.RMSprop(actor_critics[i].parameters(), lr=args.lr) for i in range(n_drones)
+]
 
 learn(
     args=args,
-    actor_critic=actor_critic,
-    optimizer=optimizer,
+    actor_critics=actor_critics,
+    optimizers=optimizers,
     env=env,
     obs_size=state_size,
     n_drones=n_drones,

@@ -43,9 +43,12 @@ class DroneEnv:
 
         i = 0
         self.uncertain_points = {}
+        # points = [[3, 2], [4, 1], [3, 1], [3, 4], [0, 3]]
         while i < self.n_anamolous:
             a = np.random.randint(self.row_count)
             b = np.random.randint(self.col_count)
+            # a = points[i][0]
+            # b = points[i][1]
             if self.grid[a][b] == 1:
                 self.grid[a][b] = self.uncertainity
                 self.uncertain_points[(a, b)] = 1

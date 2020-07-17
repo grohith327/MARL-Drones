@@ -208,83 +208,109 @@ def agent_update(args, rollouts, actor_critic, optimizer):
     return loss.item()
 
 
-def learn(args, actor_critic, optimizer, env, obs_size, n_drones):
+def learn(args, actor_critics, optimizers, env, obs_size, n_drones):
 
     log_file = f"A2C_new_policy.log"
     logging.basicConfig(filename=log_file, level=logging.INFO, format="%(message)s")
 
-    rollouts = RolloutStorage(
-        num_steps=args.rollout_steps,
-        obs_size=obs_size + n_drones * 2,
-        recurrent_hidden_state_size=actor_critic.recurrent_hidden_state_size,
-    )
+    rollouts = [
+        RolloutStorage(
+            num_steps=args.rollout_steps,
+            obs_size=obs_size + 2,
+            recurrent_hidden_state_size=actor_critics[i].recurrent_hidden_state_size,
+        )
+        for i in range(n_drones)
+    ]
 
     pbar = tqdm(range(args.total_steps))
     for j in pbar:
 
         obs = env.reset()
         drone_pos = env.n_drones_pos
-        obs = np.concatenate((obs, drone_pos[0]), -1)
-        obs = torch.tensor(obs, dtype=torch.float)
-        rollouts.obs[0].copy_(obs)
+        # obs = np.concatenate((obs, drone_pos[0]), -1)
+        # obs = torch.tensor(obs, dtype=torch.float)
+        for i in range(n_drones):
+            rollouts[i].obs[0].copy_(
+                torch.tensor(np.concatenate((obs, drone_pos[i]), -1), dtype=torch.float)
+            )
 
         eps_rewards = []
 
         for step in range(args.rollout_steps):
 
-            with torch.no_grad():
-                (
-                    value,
-                    action,
-                    action_log_prob,
-                    recurrent_hidden_states,
-                ) = actor_critic.act(
-                    rollouts.obs[step].unsqueeze(0),
-                    rollouts.recurrent_hidden_states[step].unsqueeze(0),
-                    rollouts.masks[step].unsqueeze(0),
-                )
+            values = []
+            actions = []
+            action_log_probs = []
+            recurrent_hidden_states = []
+            env_actions = []
+            for i in range(n_drones):
+                with torch.no_grad():
+                    (
+                        value,
+                        action,
+                        action_log_prob,
+                        recurrent_hidden_state,
+                    ) = actor_critics[i].act(
+                        rollouts[i].obs[step].unsqueeze(0),
+                        rollouts[i].recurrent_hidden_states[step].unsqueeze(0),
+                        rollouts[i].masks[step].unsqueeze(0),
+                    )
+                values.append(value)
+                actions.append(action)
+                env_actions.append(action.item())
+                action_log_probs.append(action_log_prob)
+                recurrent_hidden_states.append(recurrent_hidden_state)
 
-            obs, reward, done = env.step([action.item()])
+            obs, reward, done = env.step(env_actions)
             eps_rewards.append(reward)
             drone_pos = env.n_drones_pos
-            obs = np.concatenate((obs, drone_pos[0]), -1)
+            # obs = np.concatenate((obs, drone_pos[0]), -1)
 
-            obs = torch.tensor(obs, dtype=torch.float)
+            # obs = torch.tensor(obs, dtype=torch.float)
             reward = torch.tensor(reward, dtype=torch.float)
             masks = torch.tensor([0.0 if done else 1.0], dtype=torch.float)
 
-            rollouts.insert(
-                obs,
-                recurrent_hidden_states.squeeze(),
-                action.squeeze(),
-                action_log_prob.squeeze(),
-                value.squeeze(),
-                reward,
-                masks,
+            for i in range(n_drones):
+                rollouts[i].insert(
+                    torch.tensor(
+                        np.concatenate((obs, drone_pos[i]), -1), dtype=torch.float
+                    ),
+                    recurrent_hidden_states[i].squeeze(),
+                    actions[i].squeeze(),
+                    action_log_probs[i].squeeze(),
+                    values[i].squeeze(),
+                    reward,
+                    masks,
+                )
+
+        losses = []
+        for i in range(n_drones):
+            with torch.no_grad():
+                next_value = actor_critics[i].get_value(
+                    rollouts[i].obs[-1].unsqueeze(0),
+                    rollouts[i].recurrent_hidden_states[-1].unsqueeze(0),
+                    rollouts[i].masks[-1].unsqueeze(0),
+                )
+
+            rollouts[i].compute_returns(next_value, args.gamma, args.gae_lambda)
+
+            loss_value = agent_update(
+                args, rollouts[i], actor_critics[i], optimizers[i]
             )
-
-        with torch.no_grad():
-            next_value = actor_critic.get_value(
-                rollouts.obs[-1].unsqueeze(0),
-                rollouts.recurrent_hidden_states[-1].unsqueeze(0),
-                rollouts.masks[-1].unsqueeze(0),
-            )
-
-        rollouts.compute_returns(next_value, args.gamma, args.gae_lambda)
-
-        loss_value = agent_update(args, rollouts, actor_critic, optimizer)
-        rollouts.after_update()
+            losses.append(loss_value)
+            rollouts[i].after_update()
 
         pbar.set_postfix(
-            loss=loss_value,
+            loss=np.mean(loss_value),
             avg_reward=np.mean(eps_rewards),
             min_reward=np.min(eps_rewards),
             max_reward=np.max(eps_rewards),
         )
 
         if (j + 1) % args.save_freq == 0:
-            torch.save(
-                actor_critic.state_dict(),
-                f"A2C_models/{args.policy}_policy/A2C_drone_1_new_policy.bin",
-            )
+            for i in range(n_drones):
+                torch.save(
+                    actor_critics[i].state_dict(),
+                    f"A2C_models/{args.policy}_policy/A2C_drone_MARL_{i}.bin",
+                )
 
